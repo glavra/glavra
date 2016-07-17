@@ -49,7 +49,7 @@ impl ws::Handler for Server {
         let json: Map<String, Value> = serde_json::from_str(&data[..]).unwrap();
         println!("got message: {:?}", json);
 
-        let msg_type = get_string(json, "type");
+        let msg_type = get_string(json, "type").unwrap();
         match &msg_type[..] {
             "message" => {
                 let message = Message { text: get_string(json, "text").unwrap() };
