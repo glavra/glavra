@@ -63,16 +63,20 @@ impl ws::Handler for Server {
                     .insert("success", true)
                     .unwrap();
                 self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
+                let message = Message {
+                    text: format!("{} has connected", self.username.clone().unwrap()),
+                    username: String::new(),
+                    timestamp: get_timestamp()
+                };
+                self.send_message(message);
             },
             "message" => {
-                let now = time::get_time();
                 let message = Message {
                     text: get_string(&json, "text").unwrap(),
                     username: self.username.clone().unwrap(),
-                    timestamp: (now.sec as u64) * 1000 + (now.nsec as u64) / 1000000
+                    timestamp: get_timestamp()
                 };
-                self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
-                self.glavra.lock().unwrap().messages.push(message);
+                self.send_message(message);
             },
             _ => panic!()
         }
@@ -82,6 +86,23 @@ impl ws::Handler for Server {
 
     fn on_close(&mut self, _: ws::CloseCode, _: &str) {
         println!("client disconnected");
+        if self.username.is_some() {
+            let message = Message {
+                text: format!("{} has disconnected", self.username.clone().unwrap()),
+                username: String::new(),
+                timestamp: get_timestamp()
+            };
+            self.send_message(message);
+        }
+    }
+
+}
+
+impl Server {
+
+    fn send_message(&mut self, message: Message) {
+        self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
+        self.glavra.lock().unwrap().messages.push(message);
     }
 
 }
@@ -91,4 +112,9 @@ fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
         Some(&Value::String(ref s)) => Ok(s.clone()),
         _ => Err(())
     }
+}
+
+fn get_timestamp() -> u64 {
+    let now = time::get_time();
+    (now.sec as u64) * 1000 + (now.nsec as u64) / 1000000
 }
