@@ -3,6 +3,7 @@ extern crate ws;
 extern crate serde;
 extern crate serde_json;
 use serde_json::{Value, Map};
+use serde_json::builder::ObjectBuilder;
 
 use std::sync::{Arc, Mutex};
 
@@ -16,7 +17,8 @@ pub struct Glavra {
 
 struct Server {
     glavra: Arc<Mutex<Glavra>>,
-    out: ws::Sender
+    out: ws::Sender,
+    username: Option<String>
 }
 
 impl Glavra {
@@ -30,7 +32,8 @@ impl Glavra {
         ws::listen(address, |out| {
             Server {
                 glavra: arc.clone(),
-                out: out
+                out: out,
+                username: None
             }
         }).unwrap();
     }
@@ -49,10 +52,21 @@ impl ws::Handler for Server {
         let json: Map<String, Value> = serde_json::from_str(&data[..]).unwrap();
         println!("got message: {:?}", json);
 
-        let msg_type = get_string(json, "type").unwrap();
+        let msg_type = get_string(&json, "type").unwrap();
         match &msg_type[..] {
+            "auth" => {
+                self.username = Some(get_string(&json, "username").unwrap());
+                let auth_response = ObjectBuilder::new()
+                    .insert("type", "authResponse")
+                    .insert("success", true)
+                    .unwrap();
+                self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
+            },
             "message" => {
-                let message = Message { text: get_string(json, "text").unwrap() };
+                let message = Message {
+                    text: get_string(&json, "text").unwrap(),
+                    username: self.username.clone().unwrap()
+                };
                 self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
                 self.glavra.lock().unwrap().messages.push(message);
             },
@@ -68,7 +82,7 @@ impl ws::Handler for Server {
 
 }
 
-fn get_string(json: Map<String, Value>, key: &str) -> Result<String, ()> {
+fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
     match json.get(key) {
         Some(&Value::String(ref s)) => Ok(s.clone()),
         _ => Err(())

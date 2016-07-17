@@ -2,7 +2,8 @@ extern crate serde;
 
 #[derive(Clone)]
 pub struct Message {
-    pub text: String
+    pub text: String,
+    pub username: String
 }
 
 impl serde::Serialize for Message {
@@ -27,6 +28,7 @@ impl<'a> serde::ser::MapVisitor for MessageMapVisitor<'a> {
         match self.state {
             1 => Ok(Some(try!(serializer.serialize_struct_elt("type", String::from("message"))))),
             2 => Ok(Some(try!(serializer.serialize_struct_elt("text", &self.value.text)))),
+            3 => Ok(Some(try!(serializer.serialize_struct_elt("username", &self.value.username)))),
             _ => Ok(None)
         }
     }
