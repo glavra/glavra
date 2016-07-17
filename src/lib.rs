@@ -46,6 +46,9 @@ impl ws::Handler for Server {
 
     fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
         println!("client connected");
+        for ref message in self.glavra.lock().unwrap().messages.iter() {
+            self.out.send(serde_json::to_string(message).unwrap()).unwrap();
+        }
         Ok(())
     }
 
