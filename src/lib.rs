@@ -65,10 +65,11 @@ impl ws::Handler for Server {
                 self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
             },
             "message" => {
+                let now = time::get_time();
                 let message = Message {
                     text: get_string(&json, "text").unwrap(),
                     username: self.username.clone().unwrap(),
-                    timestamp: time::get_time().sec
+                    timestamp: (now.sec as u64) * 1000 + (now.nsec as u64) / 1000000
                 };
                 self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
                 self.glavra.lock().unwrap().messages.push(message);

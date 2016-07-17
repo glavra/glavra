@@ -4,7 +4,7 @@ extern crate serde;
 pub struct Message {
     pub text: String,
     pub username: String,
-    pub timestamp: i64
+    pub timestamp: u64
 }
 
 impl serde::Serialize for Message {
