@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex};
 mod message;
 use message::*;
 
+extern crate time;
+
 #[derive(Clone)]
 pub struct Glavra {
     messages: Vec<Message>
@@ -65,7 +67,8 @@ impl ws::Handler for Server {
             "message" => {
                 let message = Message {
                     text: get_string(&json, "text").unwrap(),
-                    username: self.username.clone().unwrap()
+                    username: self.username.clone().unwrap(),
+                    timestamp: time::get_time().sec
                 };
                 self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
                 self.glavra.lock().unwrap().messages.push(message);

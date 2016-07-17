@@ -7,3 +7,4 @@ authors = ["KeyboardFire <andy@keyboardfire.com>"]
 ws = "*"
 serde = "*"
 serde_json = "*"
+time = "*"

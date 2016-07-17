@@ -3,7 +3,8 @@ extern crate serde;
 #[derive(Clone)]
 pub struct Message {
     pub text: String,
-    pub username: String
+    pub username: String,
+    pub timestamp: i64
 }
 
 impl serde::Serialize for Message {
@@ -29,6 +30,7 @@ impl<'a> serde::ser::MapVisitor for MessageMapVisitor<'a> {
             1 => Ok(Some(try!(serializer.serialize_struct_elt("type", String::from("message"))))),
             2 => Ok(Some(try!(serializer.serialize_struct_elt("text", &self.value.text)))),
             3 => Ok(Some(try!(serializer.serialize_struct_elt("username", &self.value.username)))),
+            4 => Ok(Some(try!(serializer.serialize_struct_elt("timestamp", &self.value.timestamp)))),
             _ => Ok(None)
         }
     }
