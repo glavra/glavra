@@ -49,18 +49,10 @@ impl ws::Handler for Server {
         let json: Map<String, Value> = serde_json::from_str(&data[..]).unwrap();
         println!("got message: {:?}", json);
 
-        let msg_type = match json.get("type").unwrap() {
-            &Value::String(ref s) => s.clone(),
-            _ => panic!()
-        };
+        let msg_type = get_string(json, "type");
         match &msg_type[..] {
             "message" => {
-                let message = Message {
-                    text: match json.get("text").unwrap() {
-                        &Value::String(ref s) => s.clone(),
-                        _ => panic!()
-                    }
-                };
+                let message = Message { text: get_string(json, "text").unwrap() };
                 self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
                 self.glavra.lock().unwrap().messages.push(message);
             },
@@ -74,4 +66,11 @@ impl ws::Handler for Server {
         println!("client disconnected");
     }
 
+}
+
+fn get_string(json: Map<String, Value>, key: &str) -> Result<String, ()> {
+    match json.get(key) {
+        Some(&Value::String(ref s)) => Ok(s.clone()),
+        _ => Err(())
+    }
 }
