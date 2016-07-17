@@ -1,0 +1,9 @@
+[package]
+name = "glavra"
+version = "0.1.0"
+authors = ["KeyboardFire <andy@keyboardfire.com>"]
+
+[dependencies]
+ws = "*"
+serde = "*"
+serde_json = "*"
