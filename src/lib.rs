@@ -13,7 +13,10 @@ extern crate time;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 mod message;
-use message::Message;
+use message::*;
+
+mod vote;
+use vote::*;
 
 pub struct Glavra {
     conn: Connection
@@ -41,6 +44,13 @@ impl Glavra {
                             id          INTEGER PRIMARY KEY,
                             username    TEXT NOT NULL UNIQUE,
                             password    TEXT NOT NULL
+                            );
+                            CREATE TABLE IF NOT EXISTS votes (
+                            id          INTEGER PRIMARY KEY,
+                            messageid   INTEGER NOT NULL,
+                            userid      INTEGER NOT NULL,
+                            votetype    INTEGER NOT NULL,
+                            timestamp   TEXT NOT NULL
                             );
                             COMMIT;").unwrap();
 
@@ -70,6 +80,9 @@ impl ws::Handler for Server {
             .prepare("SELECT id, userid, text, timestamp FROM messages
                       ORDER BY id LIMIT 100
                       OFFSET (SELECT COUNT(*) FROM messages) - 100").unwrap();
+        let mut vote_query = lock.conn
+            .prepare("SELECT id, userid, votetype, timestamp FROM votes
+                      WHERE messageid = ?").unwrap();
 
         for message in backlog_query.query_map(&[], |row| {
                     Message {
@@ -79,7 +92,20 @@ impl ws::Handler for Server {
                         timestamp: row.get(3)
                     }
                 }).unwrap() {
-            try!(self.out.send(self.message_json(&message.unwrap(), false, &lock)));
+            let message = message.unwrap();
+            try!(self.out.send(self.message_json(&message, false, &lock)));
+            for vote in vote_query.query_map(&[&message.id], |row| {
+                        Vote {
+                            id: row.get(0),
+                            messageid: message.id,
+                            userid: row.get(1),
+                            votetype: int_to_votetype(row.get(2)).unwrap(),
+                            timestamp: row.get(3)
+                        }
+                    }).unwrap() {
+                let vote = vote.unwrap();
+                try!(self.out.send(self.vote_json(&vote, false)));
+            }
         }
 
         Ok(())
@@ -183,6 +209,18 @@ impl ws::Handler for Server {
                 self.send_message(message);
             },
 
+            "vote" => {
+                let vote = Vote {
+                    id: -1,
+                    messageid: get_i64(&json, "messageid").unwrap(),
+                    userid: self.userid.clone().unwrap(),
+                    votetype: int_to_votetype(get_i64(&json, "votetype")
+                                              .unwrap()).unwrap(),
+                    timestamp: time::get_time()
+                };
+                self.send_vote(vote);
+            },
+
             _ => panic!()
         }
 
@@ -230,13 +268,6 @@ impl Server {
         self.out.broadcast(self.message_json(&message, edit, &lock)).unwrap();
     }
 
-    fn get_username(&self, userid: i64, lock: &MutexGuard<Glavra>)
-            -> Result<String, rusqlite::Error> {
-        if userid == -1 { return Ok(String::new()); }
-        lock.conn.query_row("SELECT username FROM users
-            WHERE id = ?", &[&userid], |row| { row.get(0) })
-    }
-
     fn message_json(&self, message: &Message, edit: bool,
             lock: &MutexGuard<Glavra>) -> String {
         serde_json::to_string(&ObjectBuilder::new()
@@ -247,6 +278,46 @@ impl Server {
             .insert("text", &message.text)
             .insert("timestamp", message.timestamp.sec)
             .unwrap()).unwrap()
+    }
+
+    fn send_vote(&mut self, vote: Vote) {
+        let lock = self.glavra.lock().unwrap();
+        let voteid: Result<i64, rusqlite::Error> = lock.conn
+            .query_row("SELECT id FROM votes
+                        WHERE messageid = ? AND userid = ? AND votetype = ?",
+            &[&vote.messageid, &vote.userid, &votetype_to_int(&vote.votetype)],
+            |row| row.get(0));
+        let undo;
+        if let Ok(voteid) = voteid {
+            undo = true;
+            lock.conn.execute("DELETE FROM votes WHERE id = $1", &[&voteid])
+                .unwrap();
+        } else {
+            undo = false;
+            lock.conn.execute("INSERT INTO votes
+                    (messageid, userid, votetype, timestamp)
+                    VALUES ($1, $2, $3, $4)",
+                    &[&vote.messageid, &vote.userid,
+                    &votetype_to_int(&vote.votetype), &vote.timestamp])
+                .unwrap();
+        }
+        self.out.broadcast(self.vote_json(&vote, undo)).unwrap();
+    }
+
+    fn vote_json(&self, vote: &Vote, undo: bool) -> String {
+        serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", if undo { "undovote" } else { "vote" })
+            .insert("messageid", vote.messageid)
+            .insert("userid", vote.userid)
+            .insert("votetype", votetype_to_int(&vote.votetype))
+            .unwrap()).unwrap()
+    }
+
+    fn get_username(&self, userid: i64, lock: &MutexGuard<Glavra>)
+            -> Result<String, rusqlite::Error> {
+        if userid == -1 { return Ok(String::new()); }
+        lock.conn.query_row("SELECT username FROM users
+            WHERE id = ?", &[&userid], |row| { row.get(0) })
     }
 
 }
