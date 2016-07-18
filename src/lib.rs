@@ -5,16 +5,18 @@ extern crate serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-use std::sync::{Arc, Mutex};
-
-mod message;
-use message::*;
+extern crate rusqlite;
+use rusqlite::Connection;
 
 extern crate time;
 
-#[derive(Clone)]
+use std::sync::{Arc, Mutex};
+
+mod message;
+use message::Message;
+
 pub struct Glavra {
-    messages: Vec<Message>
+    conn: Connection
 }
 
 struct Server {
@@ -26,8 +28,22 @@ struct Server {
 impl Glavra {
 
     pub fn start(address: &str) {
+        let conn = Connection::open("data.db").unwrap();
+
+        conn.execute_batch("BEGIN;
+                            CREATE TABLE IF NOT EXISTS messages (
+                            id          INTEGER PRIMARY KEY,
+                            text        TEXT NOT NULL,
+                            username    TEXT NOT NULL,
+                            timestamp   TEXT NOT NULL
+                            );
+                            CREATE TABLE IF NOT EXISTS users (
+                            id          INTEGER PRIMARY KEY
+                            );
+                            COMMIT;").unwrap();
+
         let glavra = Glavra {
-            messages: vec![]
+            conn: conn
         };
         let arc = Arc::new(Mutex::new(glavra));
 
@@ -46,9 +62,22 @@ impl ws::Handler for Server {
 
     fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
         println!("client connected");
-        for ref message in self.glavra.lock().unwrap().messages.iter() {
-            self.out.send(serde_json::to_string(message).unwrap()).unwrap();
+
+        let lock = self.glavra.lock().unwrap();
+        let mut backlog_query = lock.conn
+                .prepare("SELECT text, username, timestamp FROM messages
+                          ORDER BY id LIMIT 50").unwrap();
+
+        for message in backlog_query.query_map(&[], |row| {
+                    Message {
+                        text: row.get(0),
+                        username: row.get(1),
+                        timestamp: row.get(2)
+                    }
+                }).unwrap() {
+            self.out.send(serde_json::to_string(&message.unwrap()).unwrap()).unwrap();
         }
+
         Ok(())
     }
 
@@ -73,7 +102,7 @@ impl ws::Handler for Server {
                     let message = Message {
                         text: format!("{} has connected", self.username.clone().unwrap()),
                         username: String::new(),
-                        timestamp: get_timestamp()
+                        timestamp: time::get_time()
                     };
                     self.send_message(message);
                 } else {
@@ -88,7 +117,7 @@ impl ws::Handler for Server {
                 let message = Message {
                     text: get_string(&json, "text").unwrap(),
                     username: self.username.clone().unwrap(),
-                    timestamp: get_timestamp()
+                    timestamp: time::get_time()
                 };
                 self.send_message(message);
             },
@@ -104,7 +133,7 @@ impl ws::Handler for Server {
             let message = Message {
                 text: format!("{} has disconnected", self.username.clone().unwrap()),
                 username: String::new(),
-                timestamp: get_timestamp()
+                timestamp: time::get_time()
             };
             self.send_message(message);
         }
@@ -116,7 +145,10 @@ impl Server {
 
     fn send_message(&mut self, message: Message) {
         self.out.broadcast(serde_json::to_string(&message).unwrap()).unwrap();
-        self.glavra.lock().unwrap().messages.push(message);
+        self.glavra.lock().unwrap().conn.execute("INSERT INTO messages
+                (text, username, timestamp) VALUES ($1, $2, $3)",
+                &[&message.text, &message.username, &message.timestamp])
+            .unwrap();
     }
 
 }
@@ -126,9 +158,4 @@ fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
         Some(&Value::String(ref s)) => Ok(s.clone()),
         _ => Err(())
     }
-}
-
-fn get_timestamp() -> u64 {
-    let now = time::get_time();
-    (now.sec as u64) * 1000 + (now.nsec as u64) / 1000000
 }
