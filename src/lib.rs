@@ -103,7 +103,7 @@ impl ws::Handler for Server {
                                }).unwrap_or(false);  // username doesn't exist
 
                 let auth_response = ObjectBuilder::new()
-                    .insert("type", "authResponse")
+                    .insert("type", "auth")
                     .insert("success", auth_success)
                     .unwrap();
                 try!(self.out.send(serde_json::to_string(&auth_response).unwrap()));
@@ -124,24 +124,25 @@ impl ws::Handler for Server {
                     (get_string(&json, "username").unwrap(),
                      get_string(&json, "password").unwrap());
 
-                self.glavra.lock().unwrap().conn
+                let success = self.glavra.lock().unwrap().conn
                     .execute("INSERT INTO users (username, password)
                               VALUES ($1, $2)", &[&username, &password])
-                    .unwrap();
+                    .is_ok();
 
                 try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                    .insert("type", "authResponse")
-                    .insert("success", true)
+                    .insert("type", "register")
+                    .insert("success", success)
                     .unwrap()).unwrap()));
 
-
-                self.username = Some(username.clone());
-                let message = Message {
-                    text: format!("{} has connected", username),
-                    username: String::new(),
-                    timestamp: time::get_time()
-                };
-                self.send_message(message);
+                if success {
+                    self.username = Some(username.clone());
+                    let message = Message {
+                        text: format!("{} has connected", username),
+                        username: String::new(),
+                        timestamp: time::get_time()
+                    };
+                    self.send_message(message);
+                }
             },
 
             "message" => {
