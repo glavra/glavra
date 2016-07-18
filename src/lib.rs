@@ -22,7 +22,7 @@ pub struct Glavra {
 struct Server {
     glavra: Arc<Mutex<Glavra>>,
     out: ws::Sender,
-    userid: Option<i32>
+    userid: Option<i64>
 }
 
 impl Glavra {
@@ -79,7 +79,7 @@ impl ws::Handler for Server {
                         timestamp: row.get(3)
                     }
                 }).unwrap() {
-            try!(self.out.send(self.message_json(&message.unwrap(), &lock)));
+            try!(self.out.send(self.message_json(&message.unwrap(), false, &lock)));
         }
 
         Ok(())
@@ -170,6 +170,16 @@ impl ws::Handler for Server {
                 self.send_message(message);
             },
 
+            "edit" => {
+                let message = Message {
+                    id: get_i64(&json, "id").unwrap(),
+                    userid: self.userid.clone().unwrap(),
+                    text: get_string(&json, "text").unwrap(),
+                    timestamp: time::get_time()
+                };
+                self.send_message(message);
+            },
+
             _ => panic!()
         }
 
@@ -196,24 +206,39 @@ impl ws::Handler for Server {
 impl Server {
 
     fn send_message(&mut self, message: Message) {
+        let mut message = message;
         let lock = self.glavra.lock().unwrap();
-        self.out.broadcast(self.message_json(&message, &lock)).unwrap();
-        lock.conn.execute("INSERT INTO messages
-                (userid, text, timestamp) VALUES ($1, $2, $3)",
-                &[&message.userid, &message.text, &message.timestamp])
-            .unwrap();
+        let edit;
+        if message.id == -1 {
+            edit = false;
+            lock.conn.execute("INSERT INTO messages
+                    (userid, text, timestamp) VALUES ($1, $2, $3)",
+                    &[&message.userid, &message.text, &message.timestamp])
+                .unwrap();
+            message.id = lock.conn.query_row("SELECT last_insert_rowid()", &[],
+                |row| row.get(0)).unwrap();
+        } else {
+            edit = true;
+            lock.conn.execute("UPDATE messages
+                    SET text = $1 WHERE id = $2",
+                    &[&message.text, &message.id])
+                .unwrap();
+        }
+        self.out.broadcast(self.message_json(&message, edit, &lock)).unwrap();
     }
 
-    fn get_username(&self, userid: i32, lock: &MutexGuard<Glavra>)
+    fn get_username(&self, userid: i64, lock: &MutexGuard<Glavra>)
             -> Result<String, rusqlite::Error> {
         if userid == -1 { return Ok(String::new()); }
         lock.conn.query_row("SELECT username FROM users
             WHERE id = ?", &[&userid], |row| { row.get(0) })
     }
 
-    fn message_json(&self, message: &Message, lock: &MutexGuard<Glavra>) -> String {
+    fn message_json(&self, message: &Message, edit: bool,
+            lock: &MutexGuard<Glavra>) -> String {
         serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "message")
+            .insert("type", if edit { "edit" } else { "message" })
+            .insert("id", message.id)
             .insert("userid", message.userid)
             .insert("username", self.get_username(message.userid, lock).unwrap())
             .insert("text", &message.text)
@@ -226,6 +251,14 @@ impl Server {
 fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
     match json.get(key) {
         Some(&Value::String(ref s)) => Ok(s.clone()),
+        _ => Err(())
+    }
+}
+
+fn get_i64(json: &Map<String, Value>, key: &str) -> Result<i64, ()> {
+    match json.get(key) {
+        Some(&Value::I64(i)) => Ok(i),
+        Some(&Value::U64(i)) => Ok(i as i64),
         _ => Err(())
     }
 }

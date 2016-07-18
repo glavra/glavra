@@ -3,8 +3,8 @@ use time::Timespec;
 
 #[derive(Clone)]
 pub struct Message {
-    pub id: i32,
-    pub userid: i32,
+    pub id: i64,
+    pub userid: i64,
     pub text: String,
     pub timestamp: Timespec
 }
