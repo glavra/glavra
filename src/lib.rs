@@ -60,18 +60,29 @@ impl ws::Handler for Server {
         let msg_type = get_string(&json, "type").unwrap();
         match &msg_type[..] {
             "auth" => {
-                self.username = Some(get_string(&json, "username").unwrap());
-                let auth_response = ObjectBuilder::new()
-                    .insert("type", "authResponse")
-                    .insert("success", true)
-                    .unwrap();
-                self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
-                let message = Message {
-                    text: format!("{} has connected", self.username.clone().unwrap()),
-                    username: String::new(),
-                    timestamp: get_timestamp()
-                };
-                self.send_message(message);
+                let (username, password) =
+                    (get_string(&json, "username").unwrap(),
+                     get_string(&json, "password").unwrap());
+                if username == password {
+                    self.username = Some(username);
+                    let auth_response = ObjectBuilder::new()
+                        .insert("type", "authResponse")
+                        .insert("success", true)
+                        .unwrap();
+                    self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
+                    let message = Message {
+                        text: format!("{} has connected", self.username.clone().unwrap()),
+                        username: String::new(),
+                        timestamp: get_timestamp()
+                    };
+                    self.send_message(message);
+                } else {
+                    let auth_response = ObjectBuilder::new()
+                        .insert("type", "authResponse")
+                        .insert("success", false)
+                        .unwrap();
+                    self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
+                }
             },
             "message" => {
                 let message = Message {
