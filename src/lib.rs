@@ -90,6 +90,7 @@ impl ws::Handler for Server {
 
         let msg_type = get_string(&json, "type").unwrap();
         match &msg_type[..] {
+
             "auth" => {
                 let (username, password) =
                     (get_string(&json, "username").unwrap(),
@@ -117,6 +118,32 @@ impl ws::Handler for Server {
                     self.send_message(message);
                 }
             },
+
+            "register" => {
+                let (username, password) =
+                    (get_string(&json, "username").unwrap(),
+                     get_string(&json, "password").unwrap());
+
+                self.glavra.lock().unwrap().conn
+                    .execute("INSERT INTO users (username, password)
+                              VALUES ($1, $2)", &[&username, &password])
+                    .unwrap();
+
+                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                    .insert("type", "authResponse")
+                    .insert("success", true)
+                    .unwrap()).unwrap()));
+
+
+                self.username = Some(username.clone());
+                let message = Message {
+                    text: format!("{} has connected", username),
+                    username: String::new(),
+                    timestamp: time::get_time()
+                };
+                self.send_message(message);
+            },
+
             "message" => {
                 let message = Message {
                     text: get_string(&json, "text").unwrap(),
@@ -125,6 +152,7 @@ impl ws::Handler for Server {
                 };
                 self.send_message(message);
             },
+
             _ => panic!()
         }
 
