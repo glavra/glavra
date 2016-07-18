@@ -38,7 +38,9 @@ impl Glavra {
                             timestamp   TEXT NOT NULL
                             );
                             CREATE TABLE IF NOT EXISTS users (
-                            id          INTEGER PRIMARY KEY
+                            id          INTEGER PRIMARY KEY,
+                            username    TEXT NOT NULL UNIQUE,
+                            password    TEXT NOT NULL
                             );
                             COMMIT;").unwrap();
 
@@ -65,8 +67,8 @@ impl ws::Handler for Server {
 
         let lock = self.glavra.lock().unwrap();
         let mut backlog_query = lock.conn
-                .prepare("SELECT text, username, timestamp FROM messages
-                          ORDER BY id LIMIT 50").unwrap();
+            .prepare("SELECT text, username, timestamp FROM messages
+                      ORDER BY id LIMIT 50").unwrap();
 
         for message in backlog_query.query_map(&[], |row| {
                     Message {
@@ -92,25 +94,27 @@ impl ws::Handler for Server {
                 let (username, password) =
                     (get_string(&json, "username").unwrap(),
                      get_string(&json, "password").unwrap());
-                if username == password {
-                    self.username = Some(username);
-                    let auth_response = ObjectBuilder::new()
-                        .insert("type", "authResponse")
-                        .insert("success", true)
-                        .unwrap();
-                    self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
+                let auth_success = self.glavra.lock().unwrap().conn
+                    .query_row("SELECT password FROM users WHERE username = ?",
+                               &[&username], |row| {
+                                   let correct_password: String = row.get(0);
+                                   password == correct_password
+                               }).unwrap_or(false);  // username doesn't exist
+
+                let auth_response = ObjectBuilder::new()
+                    .insert("type", "authResponse")
+                    .insert("success", auth_success)
+                    .unwrap();
+                try!(self.out.send(serde_json::to_string(&auth_response).unwrap()));
+
+                if auth_success {
+                    self.username = Some(username.clone());
                     let message = Message {
-                        text: format!("{} has connected", self.username.clone().unwrap()),
+                        text: format!("{} has connected", username),
                         username: String::new(),
                         timestamp: time::get_time()
                     };
                     self.send_message(message);
-                } else {
-                    let auth_response = ObjectBuilder::new()
-                        .insert("type", "authResponse")
-                        .insert("success", false)
-                        .unwrap();
-                    self.out.send(serde_json::to_string(&auth_response).unwrap()).unwrap();
                 }
             },
             "message" => {
