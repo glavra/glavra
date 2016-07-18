@@ -68,7 +68,8 @@ impl ws::Handler for Server {
         let lock = self.glavra.lock().unwrap();
         let mut backlog_query = lock.conn
             .prepare("SELECT id, userid, text, timestamp FROM messages
-                      ORDER BY id LIMIT 50").unwrap();
+                      ORDER BY id LIMIT 100
+                      OFFSET (SELECT COUNT(*) FROM messages) - 100").unwrap();
 
         for message in backlog_query.query_map(&[], |row| {
                     Message {
