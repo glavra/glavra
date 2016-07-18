@@ -214,6 +214,7 @@ impl Server {
     fn message_json(&self, message: &Message, lock: &MutexGuard<Glavra>) -> String {
         serde_json::to_string(&ObjectBuilder::new()
             .insert("type", "message")
+            .insert("userid", message.userid)
             .insert("username", self.get_username(message.userid, lock).unwrap())
             .insert("text", &message.text)
             .insert("timestamp", message.timestamp.sec)
