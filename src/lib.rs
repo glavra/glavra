@@ -161,13 +161,16 @@ impl ws::Handler for Server {
             },
 
             "message" => {
-                let message = Message {
-                    id: -1,
-                    userid: self.userid.clone().unwrap(),
-                    text: get_string(&json, "text").unwrap(),
-                    timestamp: time::get_time()
-                };
-                self.send_message(message);
+                let text = get_string(&json, "text").unwrap();
+                if !text.is_empty() {
+                    let message = Message {
+                        id: -1,
+                        userid: self.userid.clone().unwrap(),
+                        text: get_string(&json, "text").unwrap(),
+                        timestamp: time::get_time()
+                    };
+                    self.send_message(message);
+                }
             },
 
             "edit" => {
