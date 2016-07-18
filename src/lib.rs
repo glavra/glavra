@@ -78,7 +78,7 @@ impl ws::Handler for Server {
                         timestamp: row.get(3)
                     }
                 }).unwrap() {
-            self.out.send(self.message_json(&message.unwrap(), &lock)).unwrap();
+            try!(self.out.send(self.message_json(&message.unwrap(), &lock)));
         }
 
         Ok(())
