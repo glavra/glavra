@@ -18,6 +18,8 @@ use message::*;
 mod vote;
 use vote::*;
 
+mod strings;
+
 pub struct Glavra {
     conn: Connection
 }
@@ -216,13 +218,20 @@ impl ws::Handler for Server {
             },
 
             "vote" => {
+                let userid = if let Some(ref userid) = self.userid {
+                    userid.clone()
+                } else {
+                    self.send_error(strings::NEED_LOGIN);
+                    return Ok(());
+                };
+
                 let votetype = int_to_votetype(get_i64(&json, "votetype")
                                               .unwrap()).unwrap();
 
                 let vote = Vote {
                     id: -1,
                     messageid: get_i64(&json, "messageid").unwrap(),
-                    userid: self.userid.clone().unwrap(),
+                    userid: userid,
                     votetype: votetype.clone(),
                     timestamp: time::get_time()
                 };
@@ -327,6 +336,13 @@ impl Server {
             .insert("userid", vote.userid)
             .insert("votetype", votetype_to_int(&vote.votetype))
             .unwrap()).unwrap()
+    }
+
+    fn send_error(&self, err: &str) {
+        self.out.send(serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", "error")
+            .insert("text", err)
+            .unwrap()).unwrap()).unwrap();
     }
 
     fn get_username(&self, userid: i64, lock: &MutexGuard<Glavra>)
