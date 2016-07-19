@@ -8,4 +8,7 @@ ws = "*"
 serde = "*"
 serde_json = "*"
 time = "*"
-rusqlite = "*"
+
+[dependencies.rusqlite]
+version = "*"
+features = ["functions"]

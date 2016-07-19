@@ -8,9 +8,9 @@
 [ ] revision history
 [ ] deletes
 [ ] oneboxing
-[ ] stars
+[X] stars
 [ ] pins
-[ ] votes
+[X] votes
 [X] persistent
 [ ] native clients for all platforms (or at least notifs)
 [ ] good moderation system (permissions)

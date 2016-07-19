@@ -33,6 +33,10 @@ impl Glavra {
     pub fn start(address: &str) {
         let conn = Connection::open("data.db").unwrap();
 
+        conn.create_scalar_function("POW", 2, true, |ctx|
+                Ok(ctx.get::<f64>(0).unwrap().powf(ctx.get::<f64>(1).unwrap()))
+            ).unwrap();
+
         conn.execute_batch("BEGIN;
                             CREATE TABLE IF NOT EXISTS messages (
                             id          INTEGER PRIMARY KEY,
@@ -107,6 +111,8 @@ impl ws::Handler for Server {
                 try!(self.out.send(self.vote_json(&vote, false)));
             }
         }
+
+        try!(self.out.send(self.starboard_json(&lock)));
 
         Ok(())
     }
@@ -210,15 +216,25 @@ impl ws::Handler for Server {
             },
 
             "vote" => {
+                let votetype = int_to_votetype(get_i64(&json, "votetype")
+                                              .unwrap()).unwrap();
+
                 let vote = Vote {
                     id: -1,
                     messageid: get_i64(&json, "messageid").unwrap(),
                     userid: self.userid.clone().unwrap(),
-                    votetype: int_to_votetype(get_i64(&json, "votetype")
-                                              .unwrap()).unwrap(),
+                    votetype: votetype.clone(),
                     timestamp: time::get_time()
                 };
                 self.send_vote(vote);
+
+                match votetype {
+                    VoteType::Star => {
+                        let lock = self.glavra.lock().unwrap();
+                        self.out.broadcast(self.starboard_json(&lock)).unwrap();
+                    },
+                    _ => {}
+                }
             },
 
             _ => panic!()
@@ -320,6 +336,41 @@ impl Server {
             WHERE id = ?", &[&userid], |row| { row.get(0) })
     }
 
+    fn starboard_json(&self, lock: &MutexGuard<Glavra>) -> String {
+        let mut starboard_query = lock.conn
+            .prepare("SELECT m.id, m.text, m.timestamp,
+                             u.id, u.username,
+                             COUNT(v.userid) as starcount
+                      FROM votes v
+                        INNER JOIN messages m ON v.messageid = m.id
+                        LEFT JOIN users u ON m.userid = u.id
+                      WHERE v.votetype = 3
+                      GROUP BY m.id
+                      ORDER BY (starcount * POW(
+                        (STRFTIME('%s', 'NOW') - STRFTIME('%s', m.timestamp))
+                          / 60.0,
+                        -1.5))
+                      LIMIT ?").unwrap();
+        let mut starboard_result = starboard_query.query(&[&10]).unwrap();
+        let mut starboard: Vec<Value> = Vec::new();
+
+        while let Some(row) = starboard_result.next() {
+            let row = row.unwrap();
+            starboard.push(ObjectBuilder::new()
+                .insert("id", row.get::<i32, i64>(0))
+                .insert("text", row.get::<i32, String>(1))
+                .insert("timestamp", row.get::<i32, time::Timespec>(2).sec)
+                .insert("userid", row.get::<i32, Option<i64>>(3).unwrap_or(-1))
+                .insert("username", row.get::<i32, Option<String>>(4).unwrap_or_else(|| String::new()))
+                .insert("starcount", row.get::<i32, i32>(5))
+                .unwrap());
+        }
+
+        serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", "starboard")
+            .insert("messages", starboard)
+            .unwrap()).unwrap()
+    }
 }
 
 fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
