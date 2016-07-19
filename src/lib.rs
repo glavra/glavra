@@ -8,6 +8,12 @@ use serde_json::builder::ObjectBuilder;
 extern crate rusqlite;
 use rusqlite::Connection;
 
+extern crate crypto;
+use crypto::bcrypt;
+
+extern crate rand;
+use rand::{Rng, OsRng};
+
 extern crate time;
 
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -19,6 +25,8 @@ mod vote;
 use vote::*;
 
 mod strings;
+
+use std::io::Write;
 
 macro_rules! require {
     ($self_: expr, $e:expr, $err:expr) => (match $e {
@@ -63,7 +71,8 @@ impl Glavra {
                             CREATE TABLE IF NOT EXISTS users (
                             id          INTEGER PRIMARY KEY,
                             username    TEXT NOT NULL UNIQUE,
-                            password    TEXT NOT NULL
+                            salt        BLOB NOT NULL,
+                            hash        BLOB NOT NULL
                             );
                             CREATE TABLE IF NOT EXISTS votes (
                             id          INTEGER PRIMARY KEY,
@@ -152,13 +161,22 @@ impl ws::Handler for Server {
                      require!(self, get_string(&json, "password"),
                         strings::MALFORMED),
                      -1);
+
                 let auth_success = self.glavra.lock().unwrap().conn
-                    .query_row("SELECT id, password FROM users WHERE username = ?",
-                               &[&username], |row| {
-                                   userid = row.get(0);
-                                   let correct_password: String = row.get(1);
-                                   password == correct_password
-                               }).unwrap_or(false);  // username doesn't exist
+                    .query_row("SELECT id, salt, hash FROM users
+                                WHERE username = ?",
+                    &[&username], |row| {
+                        userid = row.get(0);
+                        let salt: Vec<u8> = row.get(1);
+                        let salt = salt.as_slice();
+                        // I can't believe I actually have to do this
+                        let salt = [salt[0],  salt[1],  salt[2],  salt[3],
+                                    salt[4],  salt[5],  salt[6],  salt[7],
+                                    salt[8],  salt[9],  salt[10], salt[11],
+                                    salt[12], salt[13], salt[14], salt[15]];
+                        let hash: Vec<u8> = row.get(2);
+                        hash == hash_pwd(salt, &password)
+                    }).unwrap_or(false);  // if the username doesn't exist
 
                 let auth_response = ObjectBuilder::new()
                     .insert("type", "auth")
@@ -184,13 +202,22 @@ impl ws::Handler for Server {
                         strings::MALFORMED),
                      require!(self, get_string(&json, "password"),
                         strings::MALFORMED));
+
+                let mut salt = [0u8; 16];
+                let mut rng = OsRng::new().unwrap();
+                rng.fill_bytes(&mut salt);
+                let mut salt_vec = Vec::with_capacity(16);
+                salt_vec.write(&salt).unwrap();
+                let hash = hash_pwd(salt, &password);
+
                 let success;
 
                 {
                     let lock = self.glavra.lock().unwrap();
                     success = lock.conn
-                        .execute("INSERT INTO users (username, password)
-                                  VALUES ($1, $2)", &[&username, &password])
+                        .execute("INSERT INTO users (username, salt, hash)
+                                  VALUES ($1, $2, $3)",
+                                  &[&username, &salt_vec, &hash])
                         .is_ok();
                     if success {
                         self.userid = Some(lock.conn
@@ -424,4 +451,13 @@ fn get_i64(json: &Map<String, Value>, key: &str) -> Option<i64> {
         Some(&Value::U64(i)) => Some(i as i64),
         _ => None
     }
+}
+
+// adapted from https://www.reddit.com/r/rust/comments/2sipzj/is_there_an_easy_way_to_hash_passwords_in_rust/cnptvs6
+fn hash_pwd(salt: [u8; 16], password: &String) -> Vec<u8> {
+    let mut result = [0u8; 24];
+    bcrypt::bcrypt(10, &salt, password.as_bytes(), &mut result);
+    let mut v = Vec::with_capacity(24);
+    v.write(&result).unwrap();
+    v
 }

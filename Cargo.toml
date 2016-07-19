@@ -4,10 +4,15 @@ version = "0.1.0"
 authors = ["KeyboardFire <andy@keyboardfire.com>"]
 
 [dependencies]
-ws = "*"
 serde = "*"
 serde_json = "*"
 time = "*"
+rust-crypto = "*"
+rand = "*"
+
+[dependencies.ws]
+version = "*"
+features = ["ssl"]
 
 [dependencies.rusqlite]
 version = "*"
