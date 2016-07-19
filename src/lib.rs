@@ -20,6 +20,20 @@ use vote::*;
 
 mod strings;
 
+macro_rules! require {
+    ($self_: expr, $e:expr, $err:expr) => (match $e {
+        Some(x) => x,
+        None => { $self_.send_error($err); return Ok(()); }
+    })
+}
+
+macro_rules! rrequire {
+    ($self_: expr, $e:expr, $err:expr) => (match $e {
+        Ok(x) => x,
+        Err(_) => { $self_.send_error($err); return Ok(()); }
+    })
+}
+
 pub struct Glavra {
     conn: Connection
 }
@@ -120,18 +134,23 @@ impl ws::Handler for Server {
     }
 
     fn on_message(&mut self, msg: ws::Message) -> ws::Result<()> {
-        println!("on_message called");
-        let data = try!(msg.into_text());
-        let json: Map<String, Value> = serde_json::from_str(&data[..]).unwrap();
+        let data = rrequire!(self, msg.into_text(), strings::MALFORMED);
+
+        let json: Map<String, Value> = rrequire!(self,
+            serde_json::from_str(&data[..]), strings::MALFORMED);
         println!("got message: {:?}", json);
 
-        let msg_type = get_string(&json, "type").unwrap();
+        let msg_type = require!(self, get_string(&json, "type"),
+            strings::MALFORMED);
+
         match &msg_type[..] {
 
             "auth" => {
                 let (username, password, mut userid) =
-                    (get_string(&json, "username").unwrap(),
-                     get_string(&json, "password").unwrap(),
+                    (require!(self, get_string(&json, "username"),
+                        strings::MALFORMED),
+                     require!(self, get_string(&json, "password"),
+                        strings::MALFORMED),
                      -1);
                 let auth_success = self.glavra.lock().unwrap().conn
                     .query_row("SELECT id, password FROM users WHERE username = ?",
@@ -161,8 +180,10 @@ impl ws::Handler for Server {
 
             "register" => {
                 let (username, password) =
-                    (get_string(&json, "username").unwrap(),
-                     get_string(&json, "password").unwrap());
+                    (require!(self, get_string(&json, "username"),
+                        strings::MALFORMED),
+                     require!(self, get_string(&json, "password"),
+                        strings::MALFORMED));
                 let success;
 
                 {
@@ -195,12 +216,14 @@ impl ws::Handler for Server {
             },
 
             "message" => {
-                let text = get_string(&json, "text").unwrap();
+                let text = require!(self, get_string(&json, "text"),
+                    strings::MALFORMED);
                 if !text.is_empty() {
                     let message = Message {
                         id: -1,
-                        userid: self.userid.clone().unwrap(),
-                        text: get_string(&json, "text").unwrap(),
+                        userid: require!(self, self.userid.clone(),
+                            strings::NEED_LOGIN),
+                        text: text,
                         timestamp: time::get_time()
                     };
                     self.send_message(message);
@@ -209,29 +232,28 @@ impl ws::Handler for Server {
 
             "edit" => {
                 let message = Message {
-                    id: get_i64(&json, "id").unwrap(),
-                    userid: self.userid.clone().unwrap(),
-                    text: get_string(&json, "text").unwrap(),
+                    id: require!(self, get_i64(&json, "id"),
+                        strings::MALFORMED),
+                    userid: require!(self, self.userid.clone(),
+                        strings::NEED_LOGIN),
+                    text: require!(self, get_string(&json, "text"),
+                        strings::MALFORMED),
                     timestamp: time::get_time()
                 };
                 self.send_message(message);
             },
 
             "vote" => {
-                let userid = if let Some(ref userid) = self.userid {
-                    userid.clone()
-                } else {
-                    self.send_error(strings::NEED_LOGIN);
-                    return Ok(());
-                };
-
-                let votetype = int_to_votetype(get_i64(&json, "votetype")
-                                              .unwrap()).unwrap();
+                let votetype = require!(self, int_to_votetype(require!(self,
+                    get_i64(&json, "votetype"), strings::MALFORMED)),
+                    strings::MALFORMED);
 
                 let vote = Vote {
                     id: -1,
-                    messageid: get_i64(&json, "messageid").unwrap(),
-                    userid: userid,
+                    messageid: require!(self, get_i64(&json, "messageid"),
+                        strings::MALFORMED),
+                    userid: require!(self, self.userid.clone(),
+                        strings::NEED_LOGIN),
                     votetype: votetype.clone(),
                     timestamp: time::get_time()
                 };
@@ -240,7 +262,7 @@ impl ws::Handler for Server {
                 match votetype {
                     VoteType::Star => {
                         let lock = self.glavra.lock().unwrap();
-                        self.out.broadcast(self.starboard_json(&lock)).unwrap();
+                        try!(self.out.broadcast(self.starboard_json(&lock)));
                     },
                     _ => {}
                 }
@@ -389,17 +411,17 @@ impl Server {
     }
 }
 
-fn get_string(json: &Map<String, Value>, key: &str) -> Result<String, ()> {
+fn get_string(json: &Map<String, Value>, key: &str) -> Option<String> {
     match json.get(key) {
-        Some(&Value::String(ref s)) => Ok(s.clone()),
-        _ => Err(())
+        Some(&Value::String(ref s)) => Some(s.clone()),
+        _ => None
     }
 }
 
-fn get_i64(json: &Map<String, Value>, key: &str) -> Result<i64, ()> {
+fn get_i64(json: &Map<String, Value>, key: &str) -> Option<i64> {
     match json.get(key) {
-        Some(&Value::I64(i)) => Ok(i),
-        Some(&Value::U64(i)) => Ok(i as i64),
-        _ => Err(())
+        Some(&Value::I64(i)) => Some(i),
+        Some(&Value::U64(i)) => Some(i as i64),
+        _ => None
     }
 }
