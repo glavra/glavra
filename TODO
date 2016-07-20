@@ -26,3 +26,7 @@
 [ ] optional registration verification (i.e. need approval)
 [ ] sane rate limiting
 [ ] message filters (incl. ignored users)
+[ ] transcript, permalinks
+
+bugfixes/improvements:
+[ ] auto-update starboard every n seconds/minutes/whatever
