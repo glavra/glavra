@@ -1,4 +1,5 @@
 extern crate ws;
+const UPDATE: ws::util::Token = ws::util::Token(1);
 
 extern crate serde;
 extern crate serde_json;
@@ -139,7 +140,8 @@ impl ws::Handler for Server {
             }
         }
 
-        try!(self.out.send(self.starboard_json(&lock)));
+        // this is bad and I know it
+        self.out.timeout(0, UPDATE).unwrap();
 
         Ok(())
     }
@@ -292,10 +294,11 @@ impl ws::Handler for Server {
                 };
                 self.send_vote(vote);
 
-                match votetype {
-                    VoteType::Star => {
+                match &votetype {
+                    &VoteType::Star | &VoteType::Pin => {
                         let lock = self.glavra.lock().unwrap();
-                        try!(self.out.broadcast(self.starboard_json(&lock)));
+                        try!(self.out.broadcast(self.starboard_json(votetype,
+                            &lock)));
                     },
                     _ => {}
                 }
@@ -321,6 +324,13 @@ impl ws::Handler for Server {
             };
             self.send_message(message);
         }
+    }
+
+    fn on_timeout(&mut self, _: ws::util::Token) -> ws::Result<()> {
+        let lock = self.glavra.lock().unwrap();
+        try!(self.out.send(self.starboard_json(VoteType::Star, &lock)));
+        try!(self.out.send(self.starboard_json(VoteType::Pin, &lock)));
+        self.out.timeout(60 * 1000, UPDATE)
     }
 
 }
@@ -410,22 +420,36 @@ impl Server {
             WHERE id = ?", &[&userid], |row| { row.get(0) })
     }
 
-    fn starboard_json(&self, lock: &MutexGuard<Glavra>) -> String {
-        let mut starboard_query = lock.conn
-            .prepare("SELECT m.id, m.text, m.timestamp,
-                             u.id, u.username,
-                             COUNT(v.userid) as starcount
-                      FROM votes v
-                        INNER JOIN messages m ON v.messageid = m.id
-                        LEFT JOIN users u ON m.userid = u.id
-                      WHERE v.votetype = 3
-                      GROUP BY m.id
-                      ORDER BY (starcount * POW(
-                        (STRFTIME('%s', 'NOW') - STRFTIME('%s', m.timestamp))
-                          / 60.0,
-                        -1.5))
-                      LIMIT ?").unwrap();
-        let mut starboard_result = starboard_query.query(&[&10]).unwrap();
+    fn starboard_json(&self, votetype: VoteType, lock: &MutexGuard<Glavra>)
+            -> String {
+        let mut starboard_query = lock.conn.prepare(match votetype {
+            VoteType::Star =>
+                "SELECT m.id, m.text, m.timestamp,
+                       u.id, u.username,
+                       COUNT(v.userid) as votecount
+                FROM votes v
+                  INNER JOIN messages m ON v.messageid = m.id
+                  LEFT JOIN users u ON m.userid = u.id
+                WHERE v.votetype = 3
+                GROUP BY m.id
+                ORDER BY (votecount * POW(
+                  (STRFTIME('%s', 'NOW') - STRFTIME('%s', m.timestamp))
+                    / 60.0,
+                  -1.5))
+                LIMIT 10",
+            VoteType::Pin =>
+                "SELECT m.id, m.text, m.timestamp,
+                       u.id, u.username,
+                       COUNT(v.userid) as votecount
+                FROM votes v
+                  INNER JOIN messages m ON v.messageid = m.id
+                  LEFT JOIN users u ON m.userid = u.id
+                WHERE v.votetype = 4
+                GROUP BY m.id
+                ORDER BY votecount",
+            _ => panic!("weird votetype in starboard_json")
+        }).unwrap();
+        let mut starboard_result = starboard_query.query(&[]).unwrap();
         let mut starboard: Vec<Value> = Vec::new();
 
         while let Some(row) = starboard_result.next() {
@@ -436,12 +460,13 @@ impl Server {
                 .insert("timestamp", row.get::<i32, time::Timespec>(2).sec)
                 .insert("userid", row.get::<i32, Option<i64>>(3).unwrap_or(-1))
                 .insert("username", row.get::<i32, Option<String>>(4).unwrap_or_else(|| String::new()))
-                .insert("starcount", row.get::<i32, i32>(5))
+                .insert("votecount", row.get::<i32, i32>(5))
                 .unwrap());
         }
 
         serde_json::to_string(&ObjectBuilder::new()
             .insert("type", "starboard")
+            .insert("votetype", votetype_to_int(&votetype))
             .insert("messages", starboard)
             .unwrap()).unwrap()
     }
