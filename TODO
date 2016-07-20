@@ -3,7 +3,7 @@
 [ ] secure (pw salt/hashing, TLS)
 [X] markdown
 [ ] pings
-[ ] replies
+[X] replies
 [X] edits
 [ ] revision history
 [ ] deletes

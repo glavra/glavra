@@ -65,6 +65,7 @@ impl Glavra {
                             CREATE TABLE IF NOT EXISTS messages (
                             id          INTEGER PRIMARY KEY,
                             userid      INTEGER NOT NULL,
+                            replyid     INTEGER,
                             text        TEXT NOT NULL,
                             timestamp   TEXT NOT NULL
                             );
@@ -106,7 +107,7 @@ impl ws::Handler for Server {
 
         let lock = self.glavra.lock().unwrap();
         let mut backlog_query = lock.conn
-            .prepare("SELECT id, userid, text, timestamp FROM messages
+            .prepare("SELECT id, userid, replyid, text, timestamp FROM messages
                       ORDER BY id LIMIT 100
                       OFFSET (SELECT COUNT(*) FROM messages) - 100").unwrap();
         let mut vote_query = lock.conn
@@ -117,8 +118,9 @@ impl ws::Handler for Server {
                     Message {
                         id: row.get(0),
                         userid: row.get(1),
-                        text: row.get(2),
-                        timestamp: row.get(3)
+                        replyid: row.get(2),
+                        text: row.get(3),
+                        timestamp: row.get(4)
                     }
                 }).unwrap() {
             let message = message.unwrap();
@@ -189,6 +191,7 @@ impl ws::Handler for Server {
                     let message = Message {
                         id: -1,
                         userid: -1,
+                        replyid: None,
                         text: format!("{} has connected", username),
                         timestamp: time::get_time()
                     };
@@ -235,6 +238,7 @@ impl ws::Handler for Server {
                     let message = Message {
                         id: -1,
                         userid: -1,
+                        replyid: None,
                         text: format!("{} has connected", username),
                         timestamp: time::get_time()
                     };
@@ -250,6 +254,7 @@ impl ws::Handler for Server {
                         id: -1,
                         userid: require!(self, self.userid.clone(),
                             strings::NEED_LOGIN),
+                        replyid: get_i64(&json, "replyid"),
                         text: text,
                         timestamp: time::get_time()
                     };
@@ -263,6 +268,7 @@ impl ws::Handler for Server {
                         strings::MALFORMED),
                     userid: require!(self, self.userid.clone(),
                         strings::NEED_LOGIN),
+                    replyid: get_i64(&json, "replyid"),
                     text: require!(self, get_string(&json, "text"),
                         strings::MALFORMED),
                     timestamp: time::get_time()
@@ -307,6 +313,7 @@ impl ws::Handler for Server {
             let message = Message {
                 id: -1,
                 userid: -1,
+                replyid: None,
                 text: format!("{} has disconnected",
                     self.get_username(self.userid.clone().unwrap(),
                         &self.glavra.lock().unwrap()).unwrap()),
@@ -327,8 +334,9 @@ impl Server {
         if message.id == -1 {
             edit = false;
             lock.conn.execute("INSERT INTO messages
-                    (userid, text, timestamp) VALUES ($1, $2, $3)",
-                    &[&message.userid, &message.text, &message.timestamp])
+                    (userid, replyid, text, timestamp) VALUES ($1, $2, $3, $4)",
+                    &[&message.userid, &message.replyid, &message.text,
+                        &message.timestamp])
                 .unwrap();
             message.id = lock.conn.query_row("SELECT last_insert_rowid()", &[],
                 |row| row.get(0)).unwrap();
@@ -348,6 +356,7 @@ impl Server {
             .insert("type", if edit { "edit" } else { "message" })
             .insert("id", message.id)
             .insert("userid", message.userid)
+            .insert("replyid", message.replyid)
             .insert("username", self.get_username(message.userid, lock).unwrap())
             .insert("text", &message.text)
             .insert("timestamp", message.timestamp.sec)
