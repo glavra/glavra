@@ -83,6 +83,13 @@ impl Glavra {
                             votetype    INTEGER NOT NULL,
                             timestamp   TEXT NOT NULL
                             );
+                            CREATE TABLE IF NOT EXISTS history (
+                            id          INTEGER PRIMARY KEY,
+                            messageid   INTEGER NOT NULL,
+                            replyid     INTEGER,
+                            text        TEXT NOT NULL,
+                            timestamp   TEXT NOT NULL
+                            );
                             COMMIT;").unwrap();
 
         let glavra = Glavra {
@@ -361,8 +368,6 @@ impl ws::Handler for Server {
 impl Server {
 
     fn send_message(&mut self, message: Message) {
-        // TODO disallow editing/deleting already deleted messages
-        // (this will be easier once revision history exists; wait for that)
         let mut message = message;
         let lock = self.glavra.lock().unwrap();
         let edit;
@@ -377,10 +382,24 @@ impl Server {
                 |row| row.get(0)).unwrap();
         } else {
             edit = true;
-            lock.conn.execute("UPDATE messages
-                    SET text = $1 WHERE id = $2",
-                    &[&message.text, &message.id])
-                .unwrap();
+            let (oldreplyid, oldtext) = lock.conn
+                .query_row("SELECT replyid, text FROM messages
+                            WHERE id = $1", &[&message.id], |row|
+                                (row.get::<i32, Option<i64>>(0),
+                                 row.get::<i32, String>(1))).unwrap();
+            if oldtext.is_empty() {
+                self.send_error(strings::EDIT_DELETED);
+            } else {
+                lock.conn.execute("INSERT INTO history
+                        (messageid, replyid, text, timestamp)
+                        VALUES ($1, $2, $3, $4)",
+                        &[&message.id, &oldreplyid, &oldtext, &time::get_time()])
+                    .unwrap();
+                lock.conn.execute("UPDATE messages
+                        SET replyid = $1, text = $2 WHERE id = $3",
+                        &[&message.replyid, &message.text, &message.id])
+                    .unwrap();
+            }
         }
         self.out.broadcast(self.message_json(&message, edit, &lock)).unwrap();
     }
