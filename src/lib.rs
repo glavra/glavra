@@ -251,7 +251,9 @@ impl ws::Handler for Server {
             "message" => {
                 let text = require!(self, get_string(&json, "text"),
                     strings::MALFORMED);
-                if !text.is_empty() {
+                if text.is_empty() {
+                    self.send_error(strings::EMPTY_MSG);
+                } else {
                     let message = Message {
                         id: -1,
                         userid: require!(self, self.userid.clone(),
@@ -265,14 +267,33 @@ impl ws::Handler for Server {
             },
 
             "edit" => {
+                let text = require!(self, get_string(&json, "text"),
+                    strings::MALFORMED);
+                if text.is_empty() {
+                    self.send_error(strings::EMPTY_MSG);
+                } else {
+                    let message = Message {
+                        id: require!(self, get_i64(&json, "id"),
+                            strings::MALFORMED),
+                        userid: require!(self, self.userid.clone(),
+                            strings::NEED_LOGIN),
+                        replyid: get_i64(&json, "replyid"),
+                        text: require!(self, get_string(&json, "text"),
+                            strings::MALFORMED),
+                        timestamp: time::get_time()
+                    };
+                    self.send_message(message);
+                }
+            },
+
+            "delete" => {
                 let message = Message {
                     id: require!(self, get_i64(&json, "id"),
                         strings::MALFORMED),
                     userid: require!(self, self.userid.clone(),
                         strings::NEED_LOGIN),
-                    replyid: get_i64(&json, "replyid"),
-                    text: require!(self, get_string(&json, "text"),
-                        strings::MALFORMED),
+                    replyid: None,
+                    text: String::new(),
                     timestamp: time::get_time()
                 };
                 self.send_message(message);
@@ -340,6 +361,8 @@ impl ws::Handler for Server {
 impl Server {
 
     fn send_message(&mut self, message: Message) {
+        // TODO disallow editing/deleting already deleted messages
+        // (this will be easier once revision history exists; wait for that)
         let mut message = message;
         let lock = self.glavra.lock().unwrap();
         let edit;
