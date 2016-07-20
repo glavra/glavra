@@ -304,7 +304,9 @@ impl ws::Handler for Server {
                 }
             },
 
-            _ => panic!()
+            _ => {
+                self.send_error(strings::MALFORMED);
+            }
         }
 
         Ok(())
@@ -490,6 +492,9 @@ fn get_i64(json: &Map<String, Value>, key: &str) -> Option<i64> {
 // adapted from https://www.reddit.com/r/rust/comments/2sipzj/is_there_an_easy_way_to_hash_passwords_in_rust/cnptvs6
 fn hash_pwd(salt: [u8; 16], password: &String) -> Vec<u8> {
     let mut result = [0u8; 24];
+    let password: String = password.chars().take(72).collect();
+    let password = if password.is_empty() { String::from("pls") }
+        else { password };
     bcrypt::bcrypt(10, &salt, password.as_bytes(), &mut result);
     let mut v = Vec::with_capacity(24);
     v.write(&result).unwrap();
