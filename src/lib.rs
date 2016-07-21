@@ -332,6 +332,13 @@ impl ws::Handler for Server {
                 }
             },
 
+            "history" => {
+                let id = require!(self, get_i64(&json, "id"),
+                    strings::MALFORMED);
+                let lock = self.glavra.lock().unwrap();
+                try!(self.out.send(self.history_json(id, &lock)));
+            },
+
             _ => {
                 self.send_error(strings::MALFORMED);
             }
@@ -512,6 +519,30 @@ impl Server {
             .insert("type", "starboard")
             .insert("votetype", votetype_to_int(&votetype))
             .insert("messages", starboard)
+            .unwrap()).unwrap()
+    }
+
+    fn history_json(&self, id: i64, lock: &MutexGuard<Glavra>) -> String {
+        let mut history_query = lock.conn.prepare(
+            "SELECT replyid, text, timestamp
+             FROM history
+             WHERE messageid = ?
+             ORDER BY id").unwrap();
+        let mut history_result = history_query.query(&[&id]).unwrap();
+        let mut history: Vec<Value> = Vec::new();
+
+        while let Some(row) = history_result.next() {
+            let row = row.unwrap();
+            history.push(ObjectBuilder::new()
+                .insert("replyid", row.get::<i32, Option<i64>>(0))
+                .insert("text", row.get::<i32, String>(1))
+                .insert("timestamp", row.get::<i32, time::Timespec>(2).sec)
+                .unwrap());
+        }
+
+        serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", "history")
+            .insert("revisions", history)
             .unwrap()).unwrap()
     }
 }
