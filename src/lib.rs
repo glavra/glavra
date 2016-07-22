@@ -54,7 +54,8 @@ pub struct Glavra {
 struct Server {
     glavra: Arc<Mutex<Glavra>>,
     out: ws::Sender,
-    userid: Option<i32>
+    userid: Option<i32>,
+    roomid: i32
 }
 
 impl Glavra {
@@ -100,7 +101,8 @@ impl Glavra {
             Server {
                 glavra: arc.clone(),
                 out: out,
-                userid: None
+                userid: None,
+                roomid: 0  // dummy value, will be replaced
             }
         }).unwrap();
     }
@@ -121,9 +123,15 @@ impl ws::Handler for Server {
                "failed to parse request resource URL"));
         };
 
-        let room = if let Some((_, room)) = url.query_pairs()
+        if let Some((_, room)) = url.query_pairs()
                 .find(|&(ref k, _)| k == "room") {
-            room
+            match room.parse::<i32>() {
+                Ok(parsed_room) => self.roomid = parsed_room,
+                Err(_) => {
+                    return Err(ws::Error::new(ws::ErrorKind::Internal,
+                        "invalid room ID specified on WebSocket connection"));
+                }
+            }
         } else {
             return Err(ws::Error::new(ws::ErrorKind::Internal,
                 "no room ID specified on WebSocket connection"));
