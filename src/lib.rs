@@ -123,9 +123,8 @@ impl ws::Handler for Server {
                 .join(hs.request.resource()) {
             url
         } else {
-            println!("{:?}", url::Url::parse(hs.request.resource()));
-            return Err(ws::Error::new(ws::ErrorKind::Internal,
-               "failed to parse request resource URL"));
+            self.error_close("failed to parse request resource URL");
+            return Ok(());
         };
 
         if let Some((_, room)) = url.query_pairs()
@@ -133,13 +132,14 @@ impl ws::Handler for Server {
             match room.parse() {
                 Ok(parsed_room) => self.roomid = parsed_room,
                 Err(_) => {
-                    return Err(ws::Error::new(ws::ErrorKind::Internal,
-                        "invalid room ID specified on WebSocket connection"));
+                    self.error_close("invalid room ID specified on WebSocket \
+                                     connection");
+                    return Ok(());
                 }
             }
         } else {
-            return Err(ws::Error::new(ws::ErrorKind::Internal,
-                "no room ID specified on WebSocket connection"));
+            self.error_close("no room ID specified on WebSocket connection");
+            return Ok(());
         };
 
         let lock = self.glavra.lock().unwrap();
@@ -503,6 +503,11 @@ impl Server {
             .insert("type", "error")
             .insert("text", err)
             .unwrap()).unwrap()).unwrap();
+    }
+
+    fn error_close(&self, reason: &str) {
+        self.send_error(reason);
+        self.out.close(ws::CloseCode::Unsupported).unwrap();
     }
 
     fn get_username(&self, userid: i32, lock: &MutexGuard<Glavra>)
