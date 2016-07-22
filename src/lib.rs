@@ -6,8 +6,8 @@ extern crate serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-extern crate rusqlite;
-use rusqlite::Connection;
+extern crate postgres;
+use postgres::{Connection, SslMode};
 
 extern crate crypto;
 use crypto::bcrypt;
@@ -16,6 +16,9 @@ extern crate rand;
 use rand::{Rng, OsRng};
 
 extern crate time;
+use time::Timespec;
+
+extern crate url;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -56,41 +59,36 @@ struct Server {
 impl Glavra {
 
     pub fn start(address: &str) {
-        let conn = Connection::open("data.db").unwrap();
+        let conn = Connection::connect("postgres://postgres@localhost",
+            SslMode::None).unwrap();
 
-        conn.create_scalar_function("POW", 2, true, |ctx|
-                Ok(ctx.get::<f64>(0).unwrap().powf(ctx.get::<f64>(1).unwrap()))
-            ).unwrap();
-
-        conn.execute_batch("BEGIN;
-                            CREATE TABLE IF NOT EXISTS messages (
-                            id          INTEGER PRIMARY KEY,
-                            userid      INTEGER NOT NULL,
-                            replyid     INTEGER,
+        conn.batch_execute("CREATE TABLE IF NOT EXISTS messages (
+                            id          SERIAL PRIMARY KEY,
+                            userid      INT NOT NULL,
+                            replyid     INT,
                             text        TEXT NOT NULL,
-                            timestamp   TEXT NOT NULL
+                            tstamp      TIMESTAMP NOT NULL
                             );
                             CREATE TABLE IF NOT EXISTS users (
-                            id          INTEGER PRIMARY KEY,
+                            id          SERIAL PRIMARY KEY,
                             username    TEXT NOT NULL UNIQUE,
-                            salt        BLOB NOT NULL,
-                            hash        BLOB NOT NULL
+                            salt        BYTEA NOT NULL,
+                            hash        BYTEA NOT NULL
                             );
                             CREATE TABLE IF NOT EXISTS votes (
-                            id          INTEGER PRIMARY KEY,
-                            messageid   INTEGER NOT NULL,
-                            userid      INTEGER NOT NULL,
-                            votetype    INTEGER NOT NULL,
-                            timestamp   TEXT NOT NULL
+                            id          SERIAL PRIMARY KEY,
+                            messageid   INT NOT NULL,
+                            userid      INT NOT NULL,
+                            votetype    INT NOT NULL,
+                            tstamp      TIMESTAMP NOT NULL
                             );
                             CREATE TABLE IF NOT EXISTS history (
-                            id          INTEGER PRIMARY KEY,
-                            messageid   INTEGER NOT NULL,
-                            replyid     INTEGER,
+                            id          SERIAL PRIMARY KEY,
+                            messageid   INT NOT NULL,
+                            replyid     INT,
                             text        TEXT NOT NULL,
-                            timestamp   TEXT NOT NULL
-                            );
-                            COMMIT;").unwrap();
+                            tstamp      TIMESTAMP NOT NULL
+                            );").unwrap();
 
         let glavra = Glavra {
             conn: conn
@@ -110,39 +108,47 @@ impl Glavra {
 
 impl ws::Handler for Server {
 
-    fn on_open(&mut self, _: ws::Handshake) -> ws::Result<()> {
-        println!("client connected");
+    fn on_open(&mut self, hs: ws::Handshake) -> ws::Result<()> {
+        println!("client connected from {}", hs.request.resource());
+
+        let url = if let Ok(url) = url::Url::parse(hs.request.resource()) {
+            url
+        } else {
+            return Err(ws::Error::new(ws::ErrorKind::Internal,
+               "failed to parse request resource URL"));
+        };
+
+        let room = if let Some((_, room)) = url.query_pairs()
+                .find(|&(ref k, _)| k == "room") {
+            room
+        } else {
+            return Err(ws::Error::new(ws::ErrorKind::Internal,
+                "no room ID specified on WebSocket connection"));
+        };
 
         let lock = self.glavra.lock().unwrap();
-        let mut backlog_query = lock.conn
-            .prepare("SELECT id, userid, replyid, text, timestamp FROM messages
-                      ORDER BY id LIMIT 100
-                      OFFSET (SELECT COUNT(*) FROM messages) - 100").unwrap();
-        let mut vote_query = lock.conn
-            .prepare("SELECT id, userid, votetype, timestamp FROM votes
-                      WHERE messageid = ?").unwrap();
 
-        for message in backlog_query.query_map(&[], |row| {
-                    Message {
-                        id: row.get(0),
-                        userid: row.get(1),
-                        replyid: row.get(2),
-                        text: row.get(3),
-                        timestamp: row.get(4)
-                    }
-                }).unwrap() {
-            let message = message.unwrap();
+        for row in lock.conn.query("SELECT id, userid, replyid, text, timestamp
+                FROM messages ORDER BY id LIMIT 100 OFFSET (SELECT COUNT(*)
+                FROM messages) - 100", &[]).unwrap().iter() {
+            let message = Message {
+                id: row.get(0),
+                userid: row.get(1),
+                replyid: row.get(2),
+                text: row.get(3),
+                timestamp: row.get(4)
+            };
             try!(self.out.send(self.message_json(&message, false, &lock)));
-            for vote in vote_query.query_map(&[&message.id], |row| {
-                        Vote {
-                            id: row.get(0),
-                            messageid: message.id,
-                            userid: row.get(1),
-                            votetype: int_to_votetype(row.get(2)).unwrap(),
-                            timestamp: row.get(3)
-                        }
-                    }).unwrap() {
-                let vote = vote.unwrap();
+            for row in lock.conn.query("SELECT id, userid, votetype, timestamp
+                    FROM votes WHERE messageid = $1", &[&message.id]).unwrap()
+                    .iter() {
+                let vote = Vote {
+                    id: row.get(0),
+                    messageid: message.id,
+                    userid: row.get(1),
+                    votetype: int_to_votetype(row.get(2)).unwrap(),
+                    timestamp: row.get(3)
+                };
                 try!(self.out.send(self.vote_json(&vote, false)));
             }
         }
@@ -173,10 +179,15 @@ impl ws::Handler for Server {
                         strings::MALFORMED),
                      -1);
 
-                let auth_success = self.glavra.lock().unwrap().conn
-                    .query_row("SELECT id, salt, hash FROM users
-                                WHERE username = ?",
-                    &[&username], |row| {
+                let auth_success = {
+                    let lock = self.glavra.lock().unwrap();
+                    let auth_query = lock.conn.query("SELECT id, salt, hash
+                        FROM users WHERE username = $1", &[&username]).unwrap();
+                    if auth_query.is_empty() {
+                        // the username doesn't exist
+                        false
+                    } else {
+                        let row = auth_query.get(0);
                         userid = row.get(0);
                         let salt: Vec<u8> = row.get(1);
                         let salt = salt.as_slice();
@@ -187,7 +198,8 @@ impl ws::Handler for Server {
                                     salt[12], salt[13], salt[14], salt[15]];
                         let hash: Vec<u8> = row.get(2);
                         hash == hash_pwd(salt, &password)
-                    }).unwrap_or(false);  // if the username doesn't exist
+                    }
+                };
 
                 let auth_response = ObjectBuilder::new()
                     .insert("type", "auth")
@@ -233,8 +245,8 @@ impl ws::Handler for Server {
                         .is_ok();
                     if success {
                         self.userid = Some(lock.conn
-                            .query_row("SELECT last_insert_rowid()", &[],
-                            |row| row.get(0)).unwrap());
+                            .query("SELECT last_insert_rowid()", &[]).unwrap()
+                            .get(0).get(0));
                     }
                 }
 
@@ -385,15 +397,16 @@ impl Server {
                     &[&message.userid, &message.replyid, &message.text,
                         &message.timestamp])
                 .unwrap();
-            message.id = lock.conn.query_row("SELECT last_insert_rowid()", &[],
-                |row| row.get(0)).unwrap();
+            message.id = lock.conn.query("SELECT last_insert_rowid()", &[])
+                .unwrap().get(0).get(0);
         } else {
             edit = true;
-            let (oldreplyid, oldtext) = lock.conn
-                .query_row("SELECT replyid, text FROM messages
-                            WHERE id = $1", &[&message.id], |row|
-                                (row.get::<i32, Option<i64>>(0),
-                                 row.get::<i32, String>(1))).unwrap();
+            let oldquery = lock.conn
+                .query("SELECT replyid, text FROM messages
+                        WHERE id = $1", &[&message.id]).unwrap();
+            let (oldreplyid, oldtext) =
+                (oldquery.get(0).get::<usize, Option<i64>>(0),
+                 oldquery.get(0).get::<usize, String>(1));
             if oldtext.is_empty() {
                 self.send_error(strings::EDIT_DELETED);
             } else {
@@ -426,16 +439,15 @@ impl Server {
 
     fn send_vote(&mut self, vote: Vote) {
         let lock = self.glavra.lock().unwrap();
-        let voteid: Result<i64, rusqlite::Error> = lock.conn
-            .query_row("SELECT id FROM votes
-                        WHERE messageid = ? AND userid = ? AND votetype = ?",
-            &[&vote.messageid, &vote.userid, &votetype_to_int(&vote.votetype)],
-            |row| row.get(0));
+        let voteid = lock.conn
+            .query("SELECT id FROM votes
+                        WHERE messageid = $1 AND userid = $2 AND votetype = $3",
+            &[&vote.messageid, &vote.userid, &votetype_to_int(&vote.votetype)]);
         let undo;
         if let Ok(voteid) = voteid {
             undo = true;
-            lock.conn.execute("DELETE FROM votes WHERE id = $1", &[&voteid])
-                .unwrap();
+            lock.conn.execute("DELETE FROM votes WHERE id = $1",
+                &[&voteid.get(0).get::<usize, i32>(0)]).unwrap();
         } else {
             undo = false;
             lock.conn.execute("INSERT INTO votes
@@ -465,84 +477,70 @@ impl Server {
     }
 
     fn get_username(&self, userid: i64, lock: &MutexGuard<Glavra>)
-            -> Result<String, rusqlite::Error> {
+            -> Result<String, postgres::error::Error> {
         if userid == -1 { return Ok(String::new()); }
-        lock.conn.query_row("SELECT username FROM users
-            WHERE id = ?", &[&userid], |row| { row.get(0) })
+        lock.conn.query("SELECT username FROM users
+            WHERE id = $1", &[&userid]).map(|rows|
+                rows.get(0).get::<usize, String>(0))
     }
 
     fn starboard_json(&self, votetype: VoteType, lock: &MutexGuard<Glavra>)
             -> String {
-        let mut starboard_query = lock.conn.prepare(match votetype {
-            VoteType::Star =>
-                "SELECT m.id, m.text, m.timestamp,
-                       u.id, u.username,
-                       COUNT(v.userid) as votecount
-                FROM votes v
-                  INNER JOIN messages m ON v.messageid = m.id
-                  LEFT JOIN users u ON m.userid = u.id
-                WHERE v.votetype = 3
-                GROUP BY m.id
-                ORDER BY (votecount * POW(
-                  (STRFTIME('%s', 'NOW') - STRFTIME('%s', m.timestamp))
-                    / 60.0,
-                  -1.5))
-                LIMIT 10",
-            VoteType::Pin =>
-                "SELECT m.id, m.text, m.timestamp,
-                       u.id, u.username,
-                       COUNT(v.userid) as votecount
-                FROM votes v
-                  INNER JOIN messages m ON v.messageid = m.id
-                  LEFT JOIN users u ON m.userid = u.id
-                WHERE v.votetype = 4
-                GROUP BY m.id
-                ORDER BY votecount",
-            _ => panic!("weird votetype in starboard_json")
-        }).unwrap();
-        let mut starboard_result = starboard_query.query(&[]).unwrap();
-        let mut starboard: Vec<Value> = Vec::new();
-
-        while let Some(row) = starboard_result.next() {
-            let row = row.unwrap();
-            starboard.push(ObjectBuilder::new()
-                .insert("id", row.get::<i32, i64>(0))
-                .insert("text", row.get::<i32, String>(1))
-                .insert("timestamp", row.get::<i32, time::Timespec>(2).sec)
-                .insert("userid", row.get::<i32, Option<i64>>(3).unwrap_or(-1))
-                .insert("username", row.get::<i32, Option<String>>(4).unwrap_or_else(|| String::new()))
-                .insert("votecount", row.get::<i32, i32>(5))
-                .unwrap());
-        }
-
         serde_json::to_string(&ObjectBuilder::new()
             .insert("type", "starboard")
             .insert("votetype", votetype_to_int(&votetype))
-            .insert("messages", starboard)
+            .insert("messages", lock.conn.query(match votetype {
+                VoteType::Star =>
+                    "SELECT m.id, m.text, m.timestamp,
+                           u.id, u.username,
+                           COUNT(v.userid) as votecount
+                    FROM votes v
+                      INNER JOIN messages m ON v.messageid = m.id
+                      LEFT JOIN users u ON m.userid = u.id
+                    WHERE v.votetype = 3
+                    GROUP BY m.id
+                    ORDER BY (votecount * POW(
+                      (STRFTIME('%s', 'NOW') - STRFTIME('%s', m.timestamp))
+                        / 60.0,
+                      -1.5))
+                    LIMIT 10",
+                VoteType::Pin =>
+                    "SELECT m.id, m.text, m.timestamp,
+                           u.id, u.username,
+                           COUNT(v.userid) as votecount
+                    FROM votes v
+                      INNER JOIN messages m ON v.messageid = m.id
+                      LEFT JOIN users u ON m.userid = u.id
+                    WHERE v.votetype = 4
+                    GROUP BY m.id
+                    ORDER BY votecount",
+                _ => panic!("weird votetype in starboard_json")
+            }, &[]).unwrap().iter().map(|row|
+                ObjectBuilder::new()
+                    .insert("id", row.get::<usize, i64>(0))
+                    .insert("text", row.get::<usize, String>(1))
+                    .insert("timestamp", row.get::<usize, Timespec>(2).sec)
+                    .insert("userid", row.get::<usize, Option<i64>>(3).unwrap_or(-1))
+                    .insert("username", row.get::<usize, Option<String>>(4).unwrap_or_else(|| String::new()))
+                    .insert("votecount", row.get::<usize, i32>(5))
+                    .unwrap()
+                ).collect::<Vec<Value>>())
             .unwrap()).unwrap()
     }
 
     fn history_json(&self, id: i64, lock: &MutexGuard<Glavra>) -> String {
-        let mut history_query = lock.conn.prepare(
-            "SELECT replyid, text, timestamp
-             FROM history
-             WHERE messageid = ?
-             ORDER BY id").unwrap();
-        let mut history_result = history_query.query(&[&id]).unwrap();
-        let mut history: Vec<Value> = Vec::new();
-
-        while let Some(row) = history_result.next() {
-            let row = row.unwrap();
-            history.push(ObjectBuilder::new()
-                .insert("replyid", row.get::<i32, Option<i64>>(0))
-                .insert("text", row.get::<i32, String>(1))
-                .insert("timestamp", row.get::<i32, time::Timespec>(2).sec)
-                .unwrap());
-        }
-
         serde_json::to_string(&ObjectBuilder::new()
             .insert("type", "history")
-            .insert("revisions", history)
+            .insert("revisions", lock.conn.query("
+                SELECT replyid, text, timestamp
+                FROM history
+                WHERE messageid = $1
+                ORDER BY id", &[&id]).unwrap().iter().map(|row|
+                ObjectBuilder::new()
+                    .insert("replyid", row.get::<usize, Option<i64>>(0))
+                    .insert("text", row.get::<usize, String>(1))
+                    .insert("timestamp", row.get::<usize, Timespec>(2).sec)
+                    .unwrap()).collect::<Vec<Value>>())
             .unwrap()).unwrap()
     }
 }

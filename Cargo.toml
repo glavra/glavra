@@ -9,11 +9,12 @@ serde_json = "*"
 time = "*"
 rust-crypto = "*"
 rand = "*"
+url = "*"
 
 [dependencies.ws]
 version = "*"
 features = ["ssl"]
 
-[dependencies.rusqlite]
+[dependencies.postgres]
 version = "*"
-features = ["functions"]
+features = ["time"]
