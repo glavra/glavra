@@ -3,9 +3,9 @@ use time::Timespec;
 
 #[derive(Clone)]
 pub struct Message {
-    pub id: i64,
-    pub userid: i64,
-    pub replyid: Option<i64>,
+    pub id: i32,
+    pub userid: i32,
+    pub replyid: Option<i32>,
     pub text: String,
     pub timestamp: Timespec
 }
