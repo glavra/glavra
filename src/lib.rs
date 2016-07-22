@@ -64,8 +64,13 @@ impl Glavra {
         let conn = Connection::connect("postgres://glavra@localhost",
             SslMode::None).unwrap();
 
-        conn.batch_execute("CREATE TABLE IF NOT EXISTS messages (
+        conn.batch_execute("CREATE TABLE IF NOT EXISTS rooms (
                             id          SERIAL PRIMARY KEY,
+                            name        TEXT NOT NULL
+                            );
+                            CREATE TABLE IF NOT EXISTS messages (
+                            id          SERIAL PRIMARY KEY,
+                            roomid      INT NOT NULL,
                             userid      INT NOT NULL,
                             replyid     INT,
                             text        TEXT NOT NULL,
@@ -125,7 +130,7 @@ impl ws::Handler for Server {
 
         if let Some((_, room)) = url.query_pairs()
                 .find(|&(ref k, _)| k == "room") {
-            match room.parse::<i32>() {
+            match room.parse() {
                 Ok(parsed_room) => self.roomid = parsed_room,
                 Err(_) => {
                     return Err(ws::Error::new(ws::ErrorKind::Internal,
@@ -139,11 +144,18 @@ impl ws::Handler for Server {
 
         let lock = self.glavra.lock().unwrap();
 
-        for row in lock.conn.query("SELECT * FROM (SELECT id, userid, replyid,
-                text, tstamp FROM messages ORDER BY id DESC LIMIT 100) AS _
-                ORDER BY id ASC", &[]).unwrap().iter() {
+        for row in lock.conn.query("
+                SELECT * FROM (
+                  SELECT id, userid, replyid, text, tstamp
+                  FROM messages
+                  WHERE roomid = $1
+                  ORDER BY id DESC
+                  LIMIT 100
+                ) AS _
+                ORDER BY id ASC", &[&self.roomid]).unwrap().iter() {
             let message = Message {
                 id: row.get(0),
+                roomid: self.roomid,
                 userid: row.get(1),
                 replyid: row.get(2),
                 text: row.get(3),
@@ -222,6 +234,7 @@ impl ws::Handler for Server {
                     self.userid = Some(userid);
                     let message = Message {
                         id: -1,
+                        roomid: self.roomid,
                         userid: -1,
                         replyid: None,
                         text: format!("{} has connected", username),
@@ -267,6 +280,7 @@ impl ws::Handler for Server {
                 if success {
                     let message = Message {
                         id: -1,
+                        roomid: self.roomid,
                         userid: -1,
                         replyid: None,
                         text: format!("{} has connected", username),
@@ -284,6 +298,7 @@ impl ws::Handler for Server {
                 } else {
                     let message = Message {
                         id: -1,
+                        roomid: self.roomid,
                         userid: require!(self, self.userid.clone(),
                             strings::NEED_LOGIN),
                         replyid: get_i32(&json, "replyid"),
@@ -303,6 +318,7 @@ impl ws::Handler for Server {
                     let message = Message {
                         id: require!(self, get_i32(&json, "id"),
                             strings::MALFORMED),
+                        roomid: self.roomid,
                         userid: require!(self, self.userid.clone(),
                             strings::NEED_LOGIN),
                         replyid: get_i32(&json, "replyid"),
@@ -318,6 +334,7 @@ impl ws::Handler for Server {
                 let message = Message {
                     id: require!(self, get_i32(&json, "id"),
                         strings::MALFORMED),
+                    roomid: self.roomid,
                     userid: require!(self, self.userid.clone(),
                         strings::NEED_LOGIN),
                     replyid: None,
@@ -373,6 +390,7 @@ impl ws::Handler for Server {
         if self.userid.is_some() {
             let message = Message {
                 id: -1,
+                roomid: self.roomid,
                 userid: -1,
                 replyid: None,
                 text: format!("{} has disconnected",
@@ -401,17 +419,18 @@ impl Server {
         let edit;
         if message.id == -1 {
             edit = false;
-            message.id = lock.conn.query("INSERT INTO messages
-                    (userid, replyid, text, tstamp) VALUES ($1, $2, $3, $4)
+            message.id = lock.conn.query("
+                    INSERT INTO messages (roomid, userid, replyid, text, tstamp)
+                    VALUES ($1, $2, $3, $4, $5)
                     RETURNING id",
-                    &[&message.userid, &message.replyid, &message.text,
-                        &message.timestamp])
+                    &[&self.roomid, &message.userid, &message.replyid,
+                        &message.text, &message.timestamp])
                 .unwrap().get(0).get(0);
         } else {
             edit = true;
-            let oldquery = lock.conn
-                .query("SELECT replyid, text FROM messages
-                        WHERE id = $1", &[&message.id]).unwrap();
+            let oldquery = lock.conn.query("
+                    SELECT replyid, text FROM messages WHERE id = $1",
+                    &[&message.id]).unwrap();
             let (oldreplyid, oldtext) =
                 (oldquery.get(0).get::<usize, Option<i32>>(0),
                  oldquery.get(0).get::<usize, String>(1));
@@ -507,7 +526,7 @@ impl Server {
                     FROM votes v
                       INNER JOIN messages m ON v.messageid = m.id
                       LEFT JOIN users u ON m.userid = u.id
-                    WHERE v.votetype = 3
+                    WHERE v.votetype = 3 AND m.roomid = $1
                     GROUP BY m.id
                     ORDER BY (COUNT(v.userid) * POW(
                       EXTRACT(EPOCH FROM (NOW() - m.tstamp)) / 60,
@@ -520,11 +539,11 @@ impl Server {
                     FROM votes v
                       INNER JOIN messages m ON v.messageid = m.id
                       LEFT JOIN users u ON m.userid = u.id
-                    WHERE v.votetype = 4
+                    WHERE v.votetype = 4 AND m.roomid = $1
                     GROUP BY m.id
                     ORDER BY COUNT(v.userid)",
                 _ => panic!("weird votetype in starboard_json")
-            }, &[]).unwrap().iter().map(|row|
+            }, &[&self.roomid]).unwrap().iter().map(|row|
                 ObjectBuilder::new()
                     .insert("id", row.get::<usize, i32>(0))
                     .insert("text", row.get::<usize, String>(1))
