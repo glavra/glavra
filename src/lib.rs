@@ -209,25 +209,7 @@ impl ws::Handler for Server {
 
             "register" => self.register(json),
 
-            "message" => {
-                let text = require!(self, get_string(&json, "text"),
-                    strings::MALFORMED);
-                if text.is_empty() {
-                    self.send_error(strings::EMPTY_MSG);
-                } else {
-                    let message = Message {
-                        id: -1,
-                        roomid: self.roomid,
-                        userid: require!(self, self.userid.clone(),
-                            strings::NEED_LOGIN),
-                        replyid: get_i32(&json, "replyid"),
-                        text: text,
-                        timestamp: time::get_time()
-                    };
-                    self.send_message(message);
-                }
-                Ok(())
-            },
+            "message" => self.message(json),
 
             "edit" => {
                 let text = require!(self, get_string(&json, "text"),
