@@ -213,20 +213,7 @@ impl ws::Handler for Server {
 
             "edit" => self.edit(json),
 
-            "delete" => {
-                let message = Message {
-                    id: require!(self, get_i32(&json, "id"),
-                        strings::MALFORMED),
-                    roomid: self.roomid,
-                    userid: require!(self, self.userid.clone(),
-                        strings::NEED_LOGIN),
-                    replyid: None,
-                    text: String::new(),
-                    timestamp: time::get_time()
-                };
-                self.send_message(message);
-                Ok(())
-            },
+            "delete" => self.delete(json),
 
             "vote" => {
                 let votetype = require!(self, int_to_votetype(require!(self,
