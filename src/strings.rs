@@ -5,3 +5,4 @@ pub const EDIT_DELETED:   &'static str = "You may not edit or delete a message t
 pub const BAD_REQ_URL:    &'static str = "The request URL could not be parsed.";
 pub const NO_ROOMID:      &'static str = "No room ID was specified.";
 pub const INVALID_ROOMID: &'static str = "The room ID that was specified was invalid.";
+pub const ROOM_NOT_EXIST: &'static str = "The room ID that was specified does not exist.";
