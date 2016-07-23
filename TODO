@@ -1,29 +1,17 @@
-[X] open source
-[X] sane, usable API / interface
-[ ] secure (pw salt/hashing, TLS)
-[X] markdown
-[ ] pings
-[X] replies
-[X] edits
-[X] revision history
-[X] deletes
-[ ] oneboxing
-[X] stars
-[X] pins
-[X] votes
-[X] persistent
-[ ] native clients for all platforms (or at least notifs)
-[ ] good moderation system (permissions)
-[ ] temporary kick/kb
-[ ] moving messages between rooms
-[ ] themes
-[ ] private rooms
-[ ] sending arbitrary files
-[ ] ability to export data
-[ ] full keyboard control
-[ ] CLI
-[ ] decent search
-[ ] optional registration verification (i.e. need approval)
-[ ] sane rate limiting
-[ ] message filters (incl. ignored users)
-[ ] transcript, permalinks
+TLS/SSL (web server, WS server, AND postgres server)
+pings (+notifications)
+oneboxing (at least: images, message permalinks)
+native clients for all platforms (or at least notifs)
+good moderation system (permissions)
+temporary kick/kb
+moving messages between rooms
+themes (among other user preferences such as datetime format)
+private rooms
+sending arbitrary files
+ability to export data
+full keyboard control
+CLI
+decent search
+sane rate limiting
+message filters (incl. ignored users)
+transcript, permalinks
