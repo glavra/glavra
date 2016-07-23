@@ -29,11 +29,9 @@ macro_rules! rrequire {
 impl Server {
     pub fn delete(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let message = Message {
-            id: require!(self, get_i32(&json, "id"),
-                strings::MALFORMED),
+            id: require!(self, get_i32(&json, "id"), strings::MALFORMED),
             roomid: self.roomid,
-            userid: require!(self, self.userid.clone(),
-                strings::NEED_LOGIN),
+            userid: require!(self, self.userid.clone(), strings::NEED_LOGIN),
             replyid: None,
             text: String::new(),
             timestamp: time::get_time()

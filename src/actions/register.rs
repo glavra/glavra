@@ -32,10 +32,8 @@ macro_rules! rrequire {
 impl Server {
     pub fn register(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let (username, password) =
-            (require!(self, get_string(&json, "username"),
-                strings::MALFORMED),
-             require!(self, get_string(&json, "password"),
-                strings::MALFORMED));
+            (require!(self, get_string(&json, "username"), strings::MALFORMED),
+             require!(self, get_string(&json, "password"), strings::MALFORMED));
 
         let mut salt = [0u8; 16];
         let mut rng = OsRng::new().unwrap();
@@ -48,10 +46,10 @@ impl Server {
 
         {
             let lock = self.glavra.lock().unwrap();
-            let register_query = lock.conn
-                .query("INSERT INTO users (username, salt, hash)
-                          VALUES ($1, $2, $3) RETURNING id",
-                          &[&username, &salt_vec, &hash]);
+            let register_query = lock.conn.query("
+                INSERT INTO users (username, salt, hash)
+                VALUES ($1, $2, $3) RETURNING id",
+                &[&username, &salt_vec, &hash]);
             success = register_query.is_ok();
             if success {
                 self.userid = Some(register_query.unwrap().get(0).get(0));

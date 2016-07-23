@@ -34,8 +34,7 @@ impl Server {
             self.send_error(strings::EMPTY_MSG);
         } else {
             let message = Message {
-                id: require!(self, get_i32(&json, "id"),
-                    strings::MALFORMED),
+                id: require!(self, get_i32(&json, "id"), strings::MALFORMED),
                 roomid: self.roomid,
                 userid: require!(self, self.userid.clone(),
                     strings::NEED_LOGIN),

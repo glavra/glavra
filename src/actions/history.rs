@@ -24,8 +24,7 @@ macro_rules! rrequire {
 
 impl Server {
     pub fn history(&mut self, json: Map<String, Value>) -> ws::Result<()> {
-        let id = require!(self, get_i32(&json, "id"),
-            strings::MALFORMED);
+        let id = require!(self, get_i32(&json, "id"), strings::MALFORMED);
         let lock = self.glavra.lock().unwrap();
         try!(self.out.send(self.history_json(id, &lock)));
         Ok(())

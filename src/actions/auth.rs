@@ -28,16 +28,16 @@ impl Server {
 
     pub fn auth(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let (username, password, mut userid) =
-            (require!(self, get_string(&json, "username"),
-                strings::MALFORMED),
-             require!(self, get_string(&json, "password"),
-                strings::MALFORMED),
+            (require!(self, get_string(&json, "username"), strings::MALFORMED),
+             require!(self, get_string(&json, "password"), strings::MALFORMED),
              -1);
 
         let auth_success = {
             let lock = self.glavra.lock().unwrap();
-            let auth_query = lock.conn.query("SELECT id, salt, hash
-                FROM users WHERE username = $1", &[&username]).unwrap();
+            let auth_query = lock.conn.query("
+                SELECT id, salt, hash
+                FROM users
+                WHERE username = $1", &[&username]).unwrap();
             if auth_query.is_empty() {
                 // the username doesn't exist
                 false
