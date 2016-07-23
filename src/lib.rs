@@ -66,8 +66,12 @@ impl Glavra {
 
         conn.batch_execute("CREATE TABLE IF NOT EXISTS rooms (
                             id          SERIAL PRIMARY KEY,
-                            name        TEXT NOT NULL
+                            name        TEXT NOT NULL,
+                            description TEXT NOT NULL
                             );
+                            INSERT INTO rooms (id, name, description)
+                            VALUES (1, 'Glavra', 'Glavra chatroom')
+                            ON CONFLICT DO NOTHING;
                             CREATE TABLE IF NOT EXISTS messages (
                             id          SERIAL PRIMARY KEY,
                             roomid      INT NOT NULL,
@@ -143,6 +147,22 @@ impl ws::Handler for Server {
         };
 
         let lock = self.glavra.lock().unwrap();
+
+        let room_query = lock.conn.query("
+                SELECT name, description
+                FROM rooms
+                WHERE id = $1", &[&self.roomid])
+            .unwrap();
+        if room_query.is_empty() {
+            self.error_close("room does not exist");
+            return Ok(());
+        }
+
+        try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", "roominfo")
+            .insert("name", room_query.get(0).get::<usize, String>(0))
+            .insert("desc", room_query.get(0).get::<usize, String>(1))
+            .unwrap()).unwrap()));
 
         for row in lock.conn.query("
                 SELECT * FROM (
