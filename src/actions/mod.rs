@@ -4,3 +4,4 @@ pub mod message;
 pub mod edit;
 pub mod delete;
 pub mod vote;
+pub mod history;
