@@ -204,13 +204,13 @@ impl ws::Handler for Server {
             strings::MALFORMED);
 
         match &msg_type[..] {
-            "auth" => self.auth(json),
+            "auth"     => self.auth(json),
             "register" => self.register(json),
-            "message" => self.message(json),
-            "edit" => self.edit(json),
-            "delete" => self.delete(json),
-            "vote" => self.vote(json),
-            "history" => self.history(json),
+            "message"  => self.message(json),
+            "edit"     => self.edit(json),
+            "delete"   => self.delete(json),
+            "vote"     => self.vote(json),
+            "history"  => self.history(json),
             _ => {
                 self.send_error(strings::MALFORMED);
                 Ok(())
