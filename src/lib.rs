@@ -1,3 +1,6 @@
+mod util;
+use util::*;
+
 extern crate ws;
 const UPDATE: ws::util::Token = ws::util::Token(1);
 
@@ -7,9 +10,6 @@ use serde_json::builder::ObjectBuilder;
 
 extern crate postgres;
 use postgres::{Connection, SslMode};
-
-extern crate crypto;
-use crypto::bcrypt;
 
 extern crate rand;
 use rand::{Rng, OsRng};
@@ -24,11 +24,10 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 mod message;
 use message::*;
-
 mod vote;
 use vote::*;
-
 mod strings;
+mod auth;
 
 use std::io::Write;
 
@@ -212,55 +211,7 @@ impl ws::Handler for Server {
 
         match &msg_type[..] {
 
-            "auth" => {
-                let (username, password, mut userid) =
-                    (require!(self, get_string(&json, "username"),
-                        strings::MALFORMED),
-                     require!(self, get_string(&json, "password"),
-                        strings::MALFORMED),
-                     -1);
-
-                let auth_success = {
-                    let lock = self.glavra.lock().unwrap();
-                    let auth_query = lock.conn.query("SELECT id, salt, hash
-                        FROM users WHERE username = $1", &[&username]).unwrap();
-                    if auth_query.is_empty() {
-                        // the username doesn't exist
-                        false
-                    } else {
-                        let row = auth_query.get(0);
-                        userid = row.get(0);
-                        let salt: Vec<u8> = row.get(1);
-                        let salt = salt.as_slice();
-                        // I can't believe I actually have to do this
-                        let salt = [salt[0],  salt[1],  salt[2],  salt[3],
-                                    salt[4],  salt[5],  salt[6],  salt[7],
-                                    salt[8],  salt[9],  salt[10], salt[11],
-                                    salt[12], salt[13], salt[14], salt[15]];
-                        let hash: Vec<u8> = row.get(2);
-                        hash == hash_pwd(salt, &password)
-                    }
-                };
-
-                let auth_response = ObjectBuilder::new()
-                    .insert("type", "auth")
-                    .insert("success", auth_success)
-                    .unwrap();
-                try!(self.out.send(serde_json::to_string(&auth_response).unwrap()));
-
-                if auth_success {
-                    self.userid = Some(userid);
-                    let message = Message {
-                        id: -1,
-                        roomid: self.roomid,
-                        userid: -1,
-                        replyid: None,
-                        text: format!("{} has connected", username),
-                        timestamp: time::get_time()
-                    };
-                    self.send_message(message);
-                }
-            },
+            "auth" => self.auth(json),
 
             "register" => {
                 let (username, password) =
@@ -306,6 +257,7 @@ impl ws::Handler for Server {
                     };
                     self.send_message(message);
                 }
+                Ok(())
             },
 
             "message" => {
@@ -325,6 +277,7 @@ impl ws::Handler for Server {
                     };
                     self.send_message(message);
                 }
+                Ok(())
             },
 
             "edit" => {
@@ -346,6 +299,7 @@ impl ws::Handler for Server {
                     };
                     self.send_message(message);
                 }
+                Ok(())
             },
 
             "delete" => {
@@ -360,6 +314,7 @@ impl ws::Handler for Server {
                     timestamp: time::get_time()
                 };
                 self.send_message(message);
+                Ok(())
             },
 
             "vote" => {
@@ -386,6 +341,7 @@ impl ws::Handler for Server {
                     },
                     _ => {}
                 }
+                Ok(())
             },
 
             "history" => {
@@ -393,14 +349,14 @@ impl ws::Handler for Server {
                     strings::MALFORMED);
                 let lock = self.glavra.lock().unwrap();
                 try!(self.out.send(self.history_json(id, &lock)));
+                Ok(())
             },
 
             _ => {
                 self.send_error(strings::MALFORMED);
+                Ok(())
             }
         }
-
-        Ok(())
     }
 
     fn on_close(&mut self, _: ws::CloseCode, _: &str) {
@@ -594,31 +550,4 @@ impl Server {
                     .unwrap()).collect::<Vec<Value>>())
             .unwrap()).unwrap()
     }
-}
-
-fn get_string(json: &Map<String, Value>, key: &str) -> Option<String> {
-    match json.get(key) {
-        Some(&Value::String(ref s)) => Some(s.clone()),
-        _ => None
-    }
-}
-
-fn get_i32(json: &Map<String, Value>, key: &str) -> Option<i32> {
-    match json.get(key) {
-        Some(&Value::I64(i)) => Some(i as i32),
-        Some(&Value::U64(i)) => Some(i as i32),
-        _ => None
-    }
-}
-
-// adapted from https://www.reddit.com/r/rust/comments/2sipzj/is_there_an_easy_way_to_hash_passwords_in_rust/cnptvs6
-fn hash_pwd(salt: [u8; 16], password: &String) -> Vec<u8> {
-    let mut result = [0u8; 24];
-    let password: String = password.chars().take(72).collect();
-    let password = if password.is_empty() { String::from("pls") }
-        else { password };
-    bcrypt::bcrypt(10, &salt, password.as_bytes(), &mut result);
-    let mut v = Vec::with_capacity(24);
-    v.write(&result).unwrap();
-    v
 }
