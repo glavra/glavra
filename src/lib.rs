@@ -1,7 +1,6 @@
 extern crate ws;
 const UPDATE: ws::util::Token = ws::util::Token(1);
 
-extern crate serde;
 extern crate serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
@@ -127,7 +126,7 @@ impl ws::Handler for Server {
                 .join(hs.request.resource()) {
             url
         } else {
-            self.error_close("failed to parse request resource URL");
+            self.error_close(strings::BAD_REQ_URL);
             return Ok(());
         };
 
@@ -136,13 +135,12 @@ impl ws::Handler for Server {
             match room.parse() {
                 Ok(parsed_room) => self.roomid = parsed_room,
                 Err(_) => {
-                    self.error_close("invalid room ID specified on WebSocket \
-                                     connection");
+                    self.error_close(strings::INVALID_ROOMID);
                     return Ok(());
                 }
             }
         } else {
-            self.error_close("no room ID specified on WebSocket connection");
+            self.error_close(strings::NO_ROOMID);
             return Ok(());
         };
 
@@ -154,7 +152,7 @@ impl ws::Handler for Server {
                 WHERE id = $1", &[&self.roomid])
             .unwrap();
         if room_query.is_empty() {
-            self.error_close("room does not exist");
+            self.error_close(strings::ROOM_NOT_EXIST);
             return Ok(());
         }
 
