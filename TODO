@@ -1,17 +1,33 @@
+SERVER SIDE
 TLS/SSL (web server, WS server, AND postgres server)
-pings (+notifications)
-oneboxing (at least: images, message permalinks)
-native clients for all platforms (or at least notifs)
-good moderation system (permissions)
-temporary kick/kb
-moving messages between rooms
+notifications
+message filters (incl. ignored users)
 user preferences such as datetime format (maybe handle themes better)
-private rooms
 sending arbitrary files
 ability to export data
-full keyboard control
-CLI
 decent search
-sane rate limiting
-message filters (incl. ignored users)
+
+CLIENT SIDE
+oneboxing (at least: images, message permalinks)
+full keyboard control
 transcript, permalinks
+
+OTHER CLIENTS
+native clients for all platforms (or at least notifs)
+CLI
+
+PERMISSIONS TO INCLUDE
+- read access
+- write access
+- move messages in
+- move messages out
+- change chatroom name/desc
+- change permissions of other users
+- the following privileges, separated by "own messages" and "others' messages":
+    - edit
+    - delete
+    - star
+    - pin
+    - upvote
+    - downvote
+- rate limits for all of these (daily, n per second, etc.)
