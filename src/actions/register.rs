@@ -9,7 +9,7 @@ use serde_json::builder::ObjectBuilder;
 extern crate rand;
 use self::rand::{Rng, OsRng};
 
-use strings;
+use errcode::ErrCode;
 
 use std::io::Write;
 
@@ -32,8 +32,8 @@ macro_rules! rrequire {
 impl Server {
     pub fn register(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let (username, password) =
-            (require!(self, get_string(&json, "username"), strings::MALFORMED),
-             require!(self, get_string(&json, "password"), strings::MALFORMED));
+            (require!(self, get_string(&json, "username"), ErrCode::Malformed),
+             require!(self, get_string(&json, "password"), ErrCode::Malformed));
 
         let mut salt = [0u8; 16];
         let mut rng = OsRng::new().unwrap();

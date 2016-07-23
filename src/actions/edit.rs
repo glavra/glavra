@@ -6,7 +6,7 @@ use serde_json::{Value, Map};
 
 use time;
 
-use strings;
+use errcode::ErrCode;
 
 use types::message::*;
 
@@ -29,18 +29,18 @@ macro_rules! rrequire {
 impl Server {
     pub fn edit(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let text = require!(self, get_string(&json, "text"),
-            strings::MALFORMED);
+            ErrCode::Malformed);
         if text.is_empty() {
-            self.send_error(strings::EMPTY_MSG);
+            self.send_error(ErrCode::EmptyMsg);
         } else {
             let message = Message {
-                id: require!(self, get_i32(&json, "id"), strings::MALFORMED),
+                id: require!(self, get_i32(&json, "id"), ErrCode::Malformed),
                 roomid: self.roomid,
                 userid: require!(self, self.userid.clone(),
-                    strings::NEED_LOGIN),
+                    ErrCode::NeedLogin),
                 replyid: get_i32(&json, "replyid"),
                 text: require!(self, get_string(&json, "text"),
-                    strings::MALFORMED),
+                    ErrCode::Malformed),
                 timestamp: time::get_time()
             };
             self.send_message(message);

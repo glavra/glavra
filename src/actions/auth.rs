@@ -6,7 +6,7 @@ use serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-use strings;
+use errcode::ErrCode;
 
 use Server;
 
@@ -28,8 +28,8 @@ impl Server {
 
     pub fn auth(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let (username, password, mut userid) =
-            (require!(self, get_string(&json, "username"), strings::MALFORMED),
-             require!(self, get_string(&json, "password"), strings::MALFORMED),
+            (require!(self, get_string(&json, "username"), ErrCode::Malformed),
+             require!(self, get_string(&json, "password"), ErrCode::Malformed),
              -1);
 
         let auth_success = {

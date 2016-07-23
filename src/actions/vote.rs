@@ -6,7 +6,7 @@ use serde_json::{Value, Map};
 
 use time;
 
-use strings;
+use errcode::ErrCode;
 
 use types::vote::*;
 
@@ -29,14 +29,14 @@ macro_rules! rrequire {
 impl Server {
     pub fn vote(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let votetype = require!(self, int_to_votetype(require!(self,
-            get_i32(&json, "votetype"), strings::MALFORMED)),
-            strings::MALFORMED);
+            get_i32(&json, "votetype"), ErrCode::Malformed)),
+            ErrCode::Malformed);
 
         let vote = Vote {
             id: -1,
             messageid: require!(self, get_i32(&json, "messageid"),
-                strings::MALFORMED),
-            userid: require!(self, self.userid.clone(), strings::NEED_LOGIN),
+                ErrCode::Malformed),
+            userid: require!(self, self.userid.clone(), ErrCode::NeedLogin),
             votetype: votetype.clone(),
             timestamp: time::get_time()
         };

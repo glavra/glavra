@@ -22,7 +22,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 mod types;
 use types::message::*;
 use types::vote::*;
-mod strings;
+mod errcode;
+use errcode::ErrCode;
 mod actions;
 
 macro_rules! require {
@@ -119,7 +120,7 @@ impl ws::Handler for Server {
                 .join(hs.request.resource()) {
             url
         } else {
-            self.error_close(strings::BAD_REQ_URL);
+            self.error_close(ErrCode::BadReqUrl);
             return Ok(());
         };
 
@@ -128,12 +129,12 @@ impl ws::Handler for Server {
             match room.parse() {
                 Ok(parsed_room) => self.roomid = parsed_room,
                 Err(_) => {
-                    self.error_close(strings::INVALID_ROOMID);
+                    self.error_close(ErrCode::InvalidRoomId);
                     return Ok(());
                 }
             }
         } else {
-            self.error_close(strings::NO_ROOMID);
+            self.error_close(ErrCode::NoRoomId);
             return Ok(());
         };
 
@@ -145,7 +146,7 @@ impl ws::Handler for Server {
                 WHERE id = $1", &[&self.roomid])
             .unwrap();
         if room_query.is_empty() {
-            self.error_close(strings::ROOM_NOT_EXIST);
+            self.error_close(ErrCode::RoomNotExist);
             return Ok(());
         }
 
@@ -194,14 +195,14 @@ impl ws::Handler for Server {
     }
 
     fn on_message(&mut self, msg: ws::Message) -> ws::Result<()> {
-        let data = rrequire!(self, msg.into_text(), strings::MALFORMED);
+        let data = rrequire!(self, msg.into_text(), ErrCode::Malformed);
 
         let json: Map<String, Value> = rrequire!(self,
-            serde_json::from_str(&data[..]), strings::MALFORMED);
+            serde_json::from_str(&data[..]), ErrCode::Malformed);
         println!("got message: {:?}", json);
 
         let msg_type = require!(self, get_string(&json, "type"),
-            strings::MALFORMED);
+            ErrCode::Malformed);
 
         match &msg_type[..] {
             "auth"     => self.auth(json),
@@ -212,7 +213,7 @@ impl ws::Handler for Server {
             "vote"     => self.vote(json),
             "history"  => self.history(json),
             _ => {
-                self.send_error(strings::MALFORMED);
+                self.send_error(ErrCode::Malformed);
                 Ok(())
             }
         }
@@ -268,7 +269,7 @@ impl Server {
                 (oldquery.get(0).get::<usize, Option<i32>>(0),
                  oldquery.get(0).get::<usize, String>(1));
             if oldtext.is_empty() {
-                self.send_error(strings::EDIT_DELETED);
+                self.send_error(ErrCode::EditDeleted);
             } else {
                 lock.conn.execute("INSERT INTO history
                         (messageid, replyid, text, tstamp)
@@ -343,15 +344,15 @@ impl Server {
             .unwrap()).unwrap()
     }
 
-    fn send_error(&self, err: &str) {
+    fn send_error(&self, err: ErrCode) {
         self.out.send(serde_json::to_string(&ObjectBuilder::new()
             .insert("type", "error")
-            .insert("text", err)
+            .insert("code", err as i32)
             .unwrap()).unwrap()).unwrap();
     }
 
-    fn error_close(&self, reason: &str) {
-        self.send_error(reason);
+    fn error_close(&self, err: ErrCode) {
+        self.send_error(err);
         self.out.close(ws::CloseCode::Unsupported).unwrap();
     }
 
