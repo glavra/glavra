@@ -215,32 +215,7 @@ impl ws::Handler for Server {
 
             "delete" => self.delete(json),
 
-            "vote" => {
-                let votetype = require!(self, int_to_votetype(require!(self,
-                    get_i32(&json, "votetype"), strings::MALFORMED)),
-                    strings::MALFORMED);
-
-                let vote = Vote {
-                    id: -1,
-                    messageid: require!(self, get_i32(&json, "messageid"),
-                        strings::MALFORMED),
-                    userid: require!(self, self.userid.clone(),
-                        strings::NEED_LOGIN),
-                    votetype: votetype.clone(),
-                    timestamp: time::get_time()
-                };
-                self.send_vote(vote);
-
-                match &votetype {
-                    &VoteType::Star | &VoteType::Pin => {
-                        let lock = self.glavra.lock().unwrap();
-                        try!(self.out.broadcast(self.starboard_json(votetype,
-                            &lock)));
-                    },
-                    _ => {}
-                }
-                Ok(())
-            },
+            "vote" => self.vote(json),
 
             "history" => {
                 let id = require!(self, get_i32(&json, "id"),
