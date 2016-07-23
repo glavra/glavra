@@ -19,14 +19,11 @@ use url::Url;
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-mod message;
-use message::*;
-mod vote;
-use vote::*;
+mod types;
+use types::message::*;
+use types::vote::*;
 mod strings;
-
-mod auth;
-mod register;
+mod actions;
 
 macro_rules! require {
     ($self_: expr, $e:expr, $err:expr) => (match $e {
