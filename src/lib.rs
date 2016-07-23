@@ -211,27 +211,7 @@ impl ws::Handler for Server {
 
             "message" => self.message(json),
 
-            "edit" => {
-                let text = require!(self, get_string(&json, "text"),
-                    strings::MALFORMED);
-                if text.is_empty() {
-                    self.send_error(strings::EMPTY_MSG);
-                } else {
-                    let message = Message {
-                        id: require!(self, get_i32(&json, "id"),
-                            strings::MALFORMED),
-                        roomid: self.roomid,
-                        userid: require!(self, self.userid.clone(),
-                            strings::NEED_LOGIN),
-                        replyid: get_i32(&json, "replyid"),
-                        text: require!(self, get_string(&json, "text"),
-                            strings::MALFORMED),
-                        timestamp: time::get_time()
-                    };
-                    self.send_message(message);
-                }
-                Ok(())
-            },
+            "edit" => self.edit(json),
 
             "delete" => {
                 let message = Message {
