@@ -390,6 +390,18 @@ impl Server {
             .unwrap()).unwrap()
     }
 
+    fn system_message(&mut self, text: String) {
+        let message = Message {
+            id: -1,
+            roomid: self.roomid,
+            userid: -1,
+            replyid: None,
+            text: text,
+            timestamp: time::get_time()
+        };
+        self.send_message(message);
+    }
+
     fn send_vote(&mut self, vote: Vote) {
         let lock = self.glavra.lock().unwrap();
         let voteid = lock.conn

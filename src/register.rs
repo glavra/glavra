@@ -9,10 +9,6 @@ use serde_json::builder::ObjectBuilder;
 extern crate rand;
 use self::rand::{Rng, OsRng};
 
-use time;
-
-use message::*;
-
 use strings;
 
 use std::io::Write;
@@ -68,15 +64,7 @@ impl Server {
             .unwrap()).unwrap()));
 
         if success {
-            let message = Message {
-                id: -1,
-                roomid: self.roomid,
-                userid: -1,
-                replyid: None,
-                text: format!("{} has connected", username),
-                timestamp: time::get_time()
-            };
-            self.send_message(message);
+            self.system_message(format!("{} has connected", username));
         }
 
         Ok(())

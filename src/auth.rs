@@ -6,10 +6,6 @@ use serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-use time;
-
-use message::*;
-
 use strings;
 
 use Server;
@@ -68,15 +64,7 @@ impl Server {
 
         if auth_success {
             self.userid = Some(userid);
-            let message = Message {
-                id: -1,
-                roomid: self.roomid,
-                userid: -1,
-                replyid: None,
-                text: format!("{} has connected", username),
-                timestamp: time::get_time()
-            };
-            self.send_message(message);
+            self.system_message(format!("{} has connected", username));
         }
 
         Ok(())
