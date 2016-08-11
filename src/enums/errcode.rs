@@ -9,5 +9,6 @@ pub enum ErrCode {
     InvalidRoomId,
     RoomNotExist,
     UsernameTooLong,
-    VoteOwnMessage
+    VoteOwnMessage,
+    RateLimit
 }

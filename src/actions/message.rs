@@ -48,7 +48,7 @@ impl Server {
                           AND tstamp BETWEEN now() - (interval '1s') * $2 AND now()",
                     &[&threshold, &period, &self.roomid, &userid])
                         .unwrap().get(0).get(0) {
-                self.send_error(ErrCode::Malformed); // TODO be saner
+                self.send_error(ErrCode::RateLimit);
                 return Ok(());
             }
 
