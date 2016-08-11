@@ -35,6 +35,11 @@ impl Server {
             (require!(self, get_string(&json, "username"), ErrCode::Malformed),
              require!(self, get_string(&json, "password"), ErrCode::Malformed));
 
+        if username.len() > 20 {
+            self.send_error(ErrCode::UsernameTooLong);
+            return Ok(());
+        }
+
         let mut salt = [0u8; 16];
         let mut rng = OsRng::new().unwrap();
         rng.fill_bytes(&mut salt);

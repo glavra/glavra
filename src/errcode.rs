@@ -7,5 +7,6 @@ pub enum ErrCode {
     BadReqUrl,
     NoRoomId,
     InvalidRoomId,
-    RoomNotExist
+    RoomNotExist,
+    UsernameTooLong
 }
