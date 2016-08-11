@@ -58,55 +58,94 @@ impl Glavra {
         let conn = Connection::connect("postgres://glavra@localhost",
             SslMode::None).unwrap();
 
-        conn.batch_execute("CREATE TABLE IF NOT EXISTS rooms (
-                            id          SERIAL PRIMARY KEY,
-                            name        TEXT NOT NULL,
-                            description TEXT NOT NULL
-                            );
-                            INSERT INTO rooms (id, name, description)
-                            VALUES (1, 'Glavra', 'Glavra chatroom')
-                            ON CONFLICT DO NOTHING;
-                            CREATE TABLE IF NOT EXISTS messages (
-                            id          SERIAL PRIMARY KEY,
-                            roomid      INT NOT NULL,
-                            userid      INT NOT NULL,
-                            replyid     INT,
-                            text        TEXT NOT NULL,
-                            tstamp      TIMESTAMP NOT NULL
-                            );
-                            CREATE TABLE IF NOT EXISTS users (
-                            id          SERIAL PRIMARY KEY,
-                            username    TEXT NOT NULL UNIQUE,
-                            salt        BYTEA NOT NULL,
-                            hash        BYTEA NOT NULL
-                            );
-                            CREATE TABLE IF NOT EXISTS votes (
-                            id          SERIAL PRIMARY KEY,
-                            messageid   INT NOT NULL,
-                            userid      INT NOT NULL,
-                            votetype    INT NOT NULL,
-                            tstamp      TIMESTAMP NOT NULL
-                            );
-                            CREATE TABLE IF NOT EXISTS history (
-                            id          SERIAL PRIMARY KEY,
-                            messageid   INT NOT NULL,
-                            replyid     INT,
-                            text        TEXT NOT NULL,
-                            tstamp      TIMESTAMP NOT NULL
-                            );
-                            CREATE TABLE IF NOT EXISTS privileges (
-                            id          SERIAL PRIMARY KEY,
-                            roomid      INT NOT NULL,
-                            userid      INT,
-                            privtype    INT NOT NULL,
-                            threshold   INT NOT NULL,
-                            period      INTERVAL NOT NULL
-                            );
-                            INSERT INTO privileges (id, roomid, userid,
-                                                    privtype, threshold,
-                                                    period)
-                            VALUES (1, 1, NULL, 1, 5, '5s')
-                            ON CONFLICT DO NOTHING;").unwrap();
+        conn.batch_execute("
+        CREATE TABLE IF NOT EXISTS rooms (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT NOT NULL
+        );
+
+        INSERT INTO rooms (id, name, description)
+        VALUES (1, 'Glavra', 'Glavra chatroom')
+        ON CONFLICT DO NOTHING;
+
+        CREATE TABLE IF NOT EXISTS messages (
+        id          SERIAL PRIMARY KEY,
+        roomid      INT NOT NULL,
+        userid      INT NOT NULL,
+        replyid     INT,
+        text        TEXT NOT NULL,
+        tstamp      TIMESTAMP NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+        id          SERIAL PRIMARY KEY,
+        username    TEXT NOT NULL UNIQUE,
+        salt        BYTEA NOT NULL,
+        hash        BYTEA NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS votes (
+        id          SERIAL PRIMARY KEY,
+        messageid   INT NOT NULL,
+        userid      INT NOT NULL,
+        votetype    INT NOT NULL,
+        tstamp      TIMESTAMP NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS history (
+        id          SERIAL PRIMARY KEY,
+        messageid   INT NOT NULL,
+        replyid     INT,
+        text        TEXT NOT NULL,
+        tstamp      TIMESTAMP NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS privileges (
+        id          SERIAL PRIMARY KEY,
+        roomid      INT NOT NULL,
+        userid      INT,
+        privtype    INT NOT NULL,
+        threshold   INT NOT NULL,
+        period      INTERVAL NOT NULL
+        );
+
+        INSERT INTO privileges
+        VALUES (1, 1, NULL, 1, 5, '5s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (2, 1, NULL, 10, 0, '0s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (3, 1, NULL, 11, 5, '5s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (4, 1, NULL, 12, 0, '0s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (5, 1, NULL, 13, 5, '5s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (6, 1, NULL, 14, 0, '0s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (7, 1, NULL, 15, 3, '1d')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (8, 1, NULL, 16, 0, '0s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (9, 1, NULL, 17, 0, '0s')
+        ON CONFLICT DO NOTHING;
+        ").unwrap();
 
         let glavra = Glavra {
             conn: conn

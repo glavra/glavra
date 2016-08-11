@@ -10,12 +10,12 @@ pub enum PrivType {
     EditOthers,
     DeleteOwn,
     DeleteOthers,
-    StarOwn,
-    StarOthers,
-    PinOwn,
-    PinOthers,
     UpvoteOwn,
     UpvoteOthers,
     DownvoteOwn,
-    DownvoteOthers
+    DownvoteOthers,
+    StarOwn,
+    StarOthers,
+    PinOwn,
+    PinOthers
 }

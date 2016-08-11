@@ -83,8 +83,7 @@ impl Server {
         self.send_message(message, &lock);
     }
 
-    pub fn send_vote(&mut self, vote: Vote) {
-        let lock = self.glavra.lock().unwrap();
+    pub fn send_vote(&self, vote: Vote, lock: &MutexGuard<Glavra>) {
         let voteid = lock.conn
             .query("SELECT id FROM votes
                     WHERE messageid = $1 AND userid = $2 AND votetype = $3",

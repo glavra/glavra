@@ -41,11 +41,12 @@ impl Server {
                 &self.userid, PrivType::SendMessage, &lock).unwrap();
 
             if lock.conn.query("
-                        SELECT COUNT(*) > $1
+                        SELECT COUNT(*) >= $1
                         FROM messages
                         WHERE roomid = $3
                           AND userid = $4
-                          AND tstamp BETWEEN now() - (interval '1s') * $2 AND now()",
+                          AND tstamp BETWEEN now() - (interval '1s') * $2
+                                     AND now()",
                     &[&threshold, &period, &self.roomid, &userid])
                         .unwrap().get(0).get(0) {
                 self.send_error(ErrCode::RateLimit);

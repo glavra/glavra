@@ -6,7 +6,8 @@ use serde_json::{Value, Map};
 
 use time;
 
-use enums::errcode::ErrCode;
+use enums::errcode::*;
+use enums::privtype::*;
 
 use types::vote::*;
 
@@ -28,19 +29,44 @@ macro_rules! rrequire {
 
 impl Server {
     pub fn vote(&mut self, json: Map<String, Value>) -> ws::Result<()> {
-        let votetype = require!(self, int_to_votetype(require!(self,
-            get_i32(&json, "votetype"), ErrCode::Malformed)),
+        let i_votetype = require!(self, get_i32(&json, "votetype"),
+            ErrCode::Malformed);
+        let votetype = require!(self, int_to_votetype(i_votetype),
             ErrCode::Malformed);
 
+        let lock = self.glavra.lock().unwrap();
         let id = require!(self, get_i32(&json, "messageid"), ErrCode::Malformed);
         let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
         let muserid = rrequire!(self, {
-            let lock = self.glavra.lock().unwrap();
             self.get_sender(id, &lock)
         }, ErrCode::Malformed);
+        let own = userid == muserid;
 
-        if userid == muserid {
-            self.send_error(ErrCode::VoteOwnMessage);
+        let privtype = match votetype {
+            VoteType::Upvote   => if own { PrivType::UpvoteOwn      }
+                                    else { PrivType::UpvoteOthers   },
+            VoteType::Downvote => if own { PrivType::DownvoteOwn    }
+                                    else { PrivType::DownvoteOthers },
+            VoteType::Star     => if own { PrivType::StarOwn        }
+                                    else { PrivType::StarOthers     },
+            VoteType::Pin      => if own { PrivType::PinOwn         }
+                                    else { PrivType::PinOthers      }
+        };
+        let (threshold, period) = self.get_privilege(self.roomid, &self.userid,
+            privtype, &lock).unwrap();
+
+        if lock.conn.query("
+                    SELECT COUNT(*) >= $1
+                    FROM votes v
+                    INNER JOIN messages m ON m.id = v.messageid
+                    WHERE m.roomid = $3
+                      AND v.userid = $4
+                      AND v.votetype = $5
+                      AND v.tstamp BETWEEN now() - (interval '1s') * $2
+                                   AND now()",
+                &[&threshold, &period, &self.roomid, &userid, &i_votetype])
+                    .unwrap().get(0).get(0) {
+            self.send_error(ErrCode::RateLimit);
             return Ok(());
         }
 
@@ -51,11 +77,10 @@ impl Server {
             votetype: votetype.clone(),
             timestamp: time::get_time()
         };
-        self.send_vote(vote);
+        self.send_vote(vote, &lock);
 
         match &votetype {
             &VoteType::Star | &VoteType::Pin => {
-                let lock = self.glavra.lock().unwrap();
                 try!(self.out.broadcast(self.starboard_json(votetype, &lock)));
             },
             _ => {}
