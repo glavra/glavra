@@ -100,12 +100,12 @@ impl Glavra {
                             userid      INT,
                             privtype    INT NOT NULL,
                             threshold   INT NOT NULL,
-                            period      INT NOT NULL
+                            period      INTERVAL NOT NULL
                             );
                             INSERT INTO privileges (id, roomid, userid,
                                                     privtype, threshold,
                                                     period)
-                            VALUES (1, 1, NULL, 1, 5, 5)
+                            VALUES (1, 1, NULL, 1, 5, '5s')
                             ON CONFLICT DO NOTHING;").unwrap();
 
         let glavra = Glavra {

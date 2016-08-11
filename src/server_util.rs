@@ -13,16 +13,17 @@ use std::sync::MutexGuard;
 
 use types::message::*;
 use types::vote::*;
-use enums::errcode::ErrCode;
+use enums::errcode::*;
+use enums::privtype::*;
 
 use Glavra;
 use Server;
 
 impl Server {
 
-    pub fn send_message(&mut self, message: Message) {
+    pub fn send_message(&self, message: Message) {
         let mut message = message;
-        let lock = self.glavra.lock().unwrap();
+        let lock = self.glavra.lock().unwrap(); // TODO stop the incessant locking
         let edit;
         if message.id == -1 {
             edit = false;
@@ -142,6 +143,24 @@ impl Server {
         lock.conn.query("SELECT userid FROM messages
             WHERE id = $1", &[&messageid]).map(|rows|
                 rows.get(0).get::<usize, i32>(0))
+    }
+
+    pub fn get_privilege(&self, roomid: i32, userid: &Option<i32>,
+                         privtype: PrivType, lock: &MutexGuard<Glavra>)
+            -> Result<(i64, f64), postgres::error::Error> {
+        let privtype = privtype as i32;
+        lock.conn.query("
+                SELECT threshold, EXTRACT(EPOCH FROM period)::REAL
+                FROM privileges
+                WHERE roomid = $1
+                  AND (userid = $2 OR userid IS NULL)
+                  AND privtype = $3
+                ORDER BY userid", &[&roomid, userid, &privtype])
+            .map(|rows| {
+                 let row = rows.get(0);
+                 (row.get::<usize, i32>(0) as i64,
+                  row.get::<usize, f32>(1) as f64)
+            })
     }
 
     pub fn starboard_json(&self, votetype: VoteType, lock: &MutexGuard<Glavra>)

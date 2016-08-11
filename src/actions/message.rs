@@ -6,7 +6,8 @@ use serde_json::{Value, Map};
 
 use time;
 
-use enums::errcode::ErrCode;
+use enums::errcode::*;
+use enums::privtype::*;
 
 use types::message::*;
 
@@ -28,16 +29,33 @@ macro_rules! rrequire {
 
 impl Server {
     pub fn message(&mut self, json: Map<String, Value>) -> ws::Result<()> {
-        let text = require!(self, get_string(&json, "text"),
-            ErrCode::Malformed);
+        let text = require!(self, get_string(&json, "text"), ErrCode::Malformed);
+
         if text.is_empty() {
             self.send_error(ErrCode::EmptyMsg);
         } else {
+            let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
+
+            let lock = self.glavra.lock().unwrap();
+            let (threshold, period) = self.get_privilege(self.roomid,
+                &self.userid, PrivType::SendMessage, &lock).unwrap();
+
+            if lock.conn.query("
+                        SELECT COUNT(*) > $1
+                        FROM messages
+                        WHERE roomid = $3
+                          AND userid = $4
+                          AND tstamp BETWEEN now() - (interval '1s') * $2 AND now()",
+                    &[&threshold, &period, &self.roomid, &userid])
+                        .unwrap().get(0).get(0) {
+                self.send_error(ErrCode::Malformed); // TODO be saner
+                return Ok(());
+            }
+
             let message = Message {
                 id: -1,
                 roomid: self.roomid,
-                userid: require!(self, self.userid.clone(),
-                    ErrCode::NeedLogin),
+                userid: userid,
                 replyid: get_i32(&json, "replyid"),
                 text: text,
                 timestamp: time::get_time()
