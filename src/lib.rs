@@ -92,7 +92,20 @@ impl Glavra {
                             replyid     INT,
                             text        TEXT NOT NULL,
                             tstamp      TIMESTAMP NOT NULL
-                            );").unwrap();
+                            );
+                            CREATE TABLE IF NOT EXISTS privileges (
+                            id          SERIAL PRIMARY KEY,
+                            roomid      INT NOT NULL,
+                            userid      INT NOT NULL,
+                            privtype    INT NOT NULL,
+                            threshold   INT NOT NULL,
+                            period      INT NOT NULL
+                            );
+                            INSERT INTO privileges (id, roomid, userid,
+                                                    privtype, threshold,
+                                                    period)
+                            VALUES (1, 1, 0, 1, 5, 5)
+                            ON CONFLICT DO NOTHING;").unwrap();
 
         let glavra = Glavra {
             conn: conn
