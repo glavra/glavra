@@ -6,7 +6,7 @@ use serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-use errcode::ErrCode;
+use enums::errcode::ErrCode;
 
 use Server;
 

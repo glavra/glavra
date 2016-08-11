@@ -6,7 +6,7 @@ use serde_json::{Value, Map};
 
 use time;
 
-use errcode::ErrCode;
+use enums::errcode::ErrCode;
 
 use types::message::*;
 

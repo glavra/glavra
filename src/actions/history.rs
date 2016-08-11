@@ -4,7 +4,7 @@ use ws;
 
 use serde_json::{Value, Map};
 
-use errcode::ErrCode;
+use enums::errcode::ErrCode;
 
 use Server;
 

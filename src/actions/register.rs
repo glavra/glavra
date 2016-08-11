@@ -9,7 +9,7 @@ use serde_json::builder::ObjectBuilder;
 extern crate rand;
 use self::rand::{Rng, OsRng};
 
-use errcode::ErrCode;
+use enums::errcode::ErrCode;
 
 use std::io::Write;
 

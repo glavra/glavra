@@ -22,8 +22,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 mod types;
 use types::message::*;
 use types::vote::*;
-mod errcode;
-use errcode::ErrCode;
+mod enums;
+use enums::errcode::ErrCode;
 mod actions;
 
 macro_rules! require {
@@ -96,7 +96,7 @@ impl Glavra {
                             CREATE TABLE IF NOT EXISTS privileges (
                             id          SERIAL PRIMARY KEY,
                             roomid      INT NOT NULL,
-                            userid      INT NOT NULL,
+                            userid      INT,
                             privtype    INT NOT NULL,
                             threshold   INT NOT NULL,
                             period      INT NOT NULL
@@ -104,7 +104,7 @@ impl Glavra {
                             INSERT INTO privileges (id, roomid, userid,
                                                     privtype, threshold,
                                                     period)
-                            VALUES (1, 1, 0, 1, 5, 5)
+                            VALUES (1, 1, NULL, 1, 5, 5)
                             ON CONFLICT DO NOTHING;").unwrap();
 
         let glavra = Glavra {
