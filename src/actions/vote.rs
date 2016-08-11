@@ -37,9 +37,7 @@ impl Server {
         let lock = self.glavra.lock().unwrap();
         let id = require!(self, get_i32(&json, "messageid"), ErrCode::Malformed);
         let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
-        let muserid = rrequire!(self, {
-            self.get_sender(id, &lock)
-        }, ErrCode::Malformed);
+        let muserid = rrequire!(self, self.get_sender(id, &lock), ErrCode::Malformed);
         let own = userid == muserid;
 
         let privtype = match votetype {
