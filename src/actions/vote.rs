@@ -32,11 +32,22 @@ impl Server {
             get_i32(&json, "votetype"), ErrCode::Malformed)),
             ErrCode::Malformed);
 
+        let id = require!(self, get_i32(&json, "messageid"), ErrCode::Malformed);
+        let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
+        let muserid = rrequire!(self, {
+            let lock = self.glavra.lock().unwrap();
+            self.get_sender(id, &lock)
+        }, ErrCode::Malformed);
+
+        if userid == muserid {
+            self.send_error(ErrCode::VoteOwnMessage);
+            return Ok(());
+        }
+
         let vote = Vote {
             id: -1,
-            messageid: require!(self, get_i32(&json, "messageid"),
-                ErrCode::Malformed),
-            userid: require!(self, self.userid.clone(), ErrCode::NeedLogin),
+            messageid: id,
+            userid: userid,
             votetype: votetype.clone(),
             timestamp: time::get_time()
         };

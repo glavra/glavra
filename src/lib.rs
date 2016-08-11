@@ -377,6 +377,13 @@ impl Server {
                 rows.get(0).get::<usize, String>(0))
     }
 
+    fn get_sender(&self, messageid: i32, lock: &MutexGuard<Glavra>)
+            -> Result<i32, postgres::error::Error> {
+        lock.conn.query("SELECT userid FROM messages
+            WHERE id = $1", &[&messageid]).map(|rows|
+                rows.get(0).get::<usize, i32>(0))
+    }
+
     fn starboard_json(&self, votetype: VoteType, lock: &MutexGuard<Glavra>)
             -> String {
         serde_json::to_string(&ObjectBuilder::new()
