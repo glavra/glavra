@@ -47,18 +47,14 @@ impl Server {
         salt_vec.write(&salt).unwrap();
         let hash = hash_pwd(salt, &password);
 
-        let success;
-
-        {
-            let lock = self.glavra.lock().unwrap();
-            let register_query = lock.conn.query("
-                INSERT INTO users (username, salt, hash)
-                VALUES ($1, $2, $3) RETURNING id",
-                &[&username, &salt_vec, &hash]);
-            success = register_query.is_ok();
-            if success {
-                self.userid = Some(register_query.unwrap().get(0).get(0));
-            }
+        let lock = self.glavra.lock().unwrap();
+        let register_query = lock.conn.query("
+            INSERT INTO users (username, salt, hash)
+            VALUES ($1, $2, $3) RETURNING id",
+            &[&username, &salt_vec, &hash]);
+        let success = register_query.is_ok();
+        if success {
+            self.userid = Some(register_query.unwrap().get(0).get(0));
         }
 
         try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
@@ -67,7 +63,7 @@ impl Server {
             .unwrap()).unwrap()));
 
         if success {
-            self.system_message(format!("{} has connected", username));
+            self.system_message(format!("{} has connected", username), &lock);
         }
 
         Ok(())

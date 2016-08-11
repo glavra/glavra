@@ -60,7 +60,7 @@ impl Server {
                 text: text,
                 timestamp: time::get_time()
             };
-            self.send_message(message);
+            self.send_message(message, &lock);
         }
         Ok(())
     }

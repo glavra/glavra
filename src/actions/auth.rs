@@ -32,8 +32,8 @@ impl Server {
              require!(self, get_string(&json, "password"), ErrCode::Malformed),
              -1);
 
+        let lock = self.glavra.lock().unwrap();
         let auth_success = {
-            let lock = self.glavra.lock().unwrap();
             let auth_query = lock.conn.query("
                 SELECT id, salt, hash
                 FROM users
@@ -64,7 +64,7 @@ impl Server {
 
         if auth_success {
             self.userid = Some(userid);
-            self.system_message(format!("{} has connected", username));
+            self.system_message(format!("{} has connected", username), &lock);
         }
 
         Ok(())

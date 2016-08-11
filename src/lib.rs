@@ -236,17 +236,10 @@ impl ws::Handler for Server {
     fn on_close(&mut self, _: ws::CloseCode, _: &str) {
         println!("client disconnected");
         if self.userid.is_some() {
-            let message = Message {
-                id: -1,
-                roomid: self.roomid,
-                userid: -1,
-                replyid: None,
-                text: format!("{} has disconnected",
-                    self.get_username(self.userid.clone().unwrap(),
-                        &self.glavra.lock().unwrap()).unwrap()),
-                timestamp: time::get_time()
-            };
-            self.send_message(message);
+            let lock = self.glavra.lock().unwrap();
+            self.system_message(format!("{} has disconnected",
+                self.get_username(self.userid.clone().unwrap(), &lock)
+                    .unwrap()), &lock);
         }
     }
 

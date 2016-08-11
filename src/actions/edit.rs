@@ -43,7 +43,7 @@ impl Server {
                     ErrCode::Malformed),
                 timestamp: time::get_time()
             };
-            self.send_message(message);
+            self.send_message(message, &self.glavra.lock().unwrap());
         }
         Ok(())
     }

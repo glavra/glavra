@@ -21,9 +21,8 @@ use Server;
 
 impl Server {
 
-    pub fn send_message(&self, message: Message) {
+    pub fn send_message(&self, message: Message, lock: &MutexGuard<Glavra>) {
         let mut message = message;
-        let lock = self.glavra.lock().unwrap(); // TODO stop the incessant locking
         let edit;
         if message.id == -1 {
             edit = false;
@@ -72,7 +71,7 @@ impl Server {
             .unwrap()).unwrap()
     }
 
-    pub fn system_message(&mut self, text: String) {
+    pub fn system_message(&self, text: String, lock: &MutexGuard<Glavra>) {
         let message = Message {
             id: -1,
             roomid: self.roomid,
@@ -81,7 +80,7 @@ impl Server {
             text: text,
             timestamp: time::get_time()
         };
-        self.send_message(message);
+        self.send_message(message, &lock);
     }
 
     pub fn send_vote(&mut self, vote: Vote) {
