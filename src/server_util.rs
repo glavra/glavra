@@ -178,7 +178,7 @@ impl Server {
                     GROUP BY m.id
                     ORDER BY (COUNT(v.userid) * POW(
                       EXTRACT(EPOCH FROM (NOW() - m.tstamp)) / 60,
-                      -1.5))
+                      -1.5)) DESC
                     LIMIT 10",
                 VoteType::Pin =>
                     "SELECT m.id, m.text, m.tstamp,
