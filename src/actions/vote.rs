@@ -36,6 +36,7 @@ impl Server {
 
         let lock = self.glavra.lock().unwrap();
         let id = require!(self, get_i32(&json, "messageid"), ErrCode::Malformed);
+        let roomid = require!(self, self.roomid, ErrCode::NoRoomId);
         let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
         let muserid = rrequire!(self, self.get_sender(id, &lock), ErrCode::Malformed);
         let own = userid == muserid;
@@ -50,7 +51,7 @@ impl Server {
             VoteType::Pin      => if own { PrivType::PinOwn         }
                                     else { PrivType::PinOthers      }
         };
-        let (threshold, period) = self.get_privilege(self.roomid, &self.userid,
+        let (threshold, period) = self.get_privilege(roomid, &self.userid,
             privtype, &lock).unwrap();
 
         if lock.conn.query("
@@ -62,7 +63,7 @@ impl Server {
                       AND v.votetype = $5
                       AND v.tstamp BETWEEN now() - (interval '1s') * $2
                                    AND now()",
-                &[&threshold, &period, &self.roomid, &userid, &i_votetype])
+                &[&threshold, &period, &roomid, &userid, &i_votetype])
                     .unwrap().get(0).get(0) {
             self.send_error(ErrCode::RateLimit);
             return Ok(());

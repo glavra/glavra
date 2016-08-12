@@ -30,7 +30,7 @@ impl Server {
                     INSERT INTO messages (roomid, userid, replyid, text, tstamp)
                     VALUES ($1, $2, $3, $4, $5)
                     RETURNING id",
-                    &[&self.roomid, &message.userid, &message.replyid,
+                    &[&self.roomid.unwrap(), &message.userid, &message.replyid,
                         &message.text, &message.timestamp])
                 .unwrap().get(0).get(0);
         } else {
@@ -74,7 +74,7 @@ impl Server {
     pub fn system_message(&self, text: String, lock: &MutexGuard<Glavra>) {
         let message = Message {
             id: -1,
-            roomid: self.roomid,
+            roomid: self.roomid.unwrap(),
             userid: -1,
             replyid: None,
             text: text,
@@ -191,7 +191,7 @@ impl Server {
                     GROUP BY m.id
                     ORDER BY COUNT(v.userid)",
                 _ => panic!("weird votetype in starboard_json")
-            }, &[&self.roomid]).unwrap().iter().map(|row|
+            }, &[&self.roomid.unwrap()]).unwrap().iter().map(|row|
                 ObjectBuilder::new()
                     .insert("id", row.get::<usize, i32>(0))
                     .insert("text", row.get::<usize, String>(1))

@@ -31,12 +31,12 @@ impl Server {
     pub fn delete(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let lock = self.glavra.lock().unwrap();
         let id = require!(self, get_i32(&json, "id"), ErrCode::Malformed);
+        let roomid = require!(self, self.roomid, ErrCode::NoRoomId);
         let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
         let muserid = rrequire!(self, self.get_sender(id, &lock), ErrCode::Malformed);
         let own = userid == muserid;
 
-        let (threshold, period) = self.get_privilege(self.roomid,
-            &self.userid,
+        let (threshold, period) = self.get_privilege(roomid, &self.userid,
             if own { PrivType::DeleteOwn } else { PrivType::DeleteOthers },
             &lock).unwrap();
 
@@ -49,7 +49,7 @@ impl Server {
                       AND m.text = ''
                       AND h.tstamp BETWEEN now() - (interval '1s') * $2
                                    AND now()",
-                &[&threshold, &period, &self.roomid, &userid])
+                &[&threshold, &period, &roomid, &userid])
                     .unwrap().get(0).get(0) {
             self.send_error(ErrCode::RateLimit);
             return Ok(());
@@ -57,7 +57,7 @@ impl Server {
 
         let message = Message {
             id: require!(self, get_i32(&json, "id"), ErrCode::Malformed),
-            roomid: self.roomid,
+            roomid: roomid,
             userid: require!(self, self.userid.clone(), ErrCode::NeedLogin),
             replyid: None,
             text: String::new(),

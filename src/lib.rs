@@ -49,7 +49,7 @@ struct Server {
     glavra: Arc<Mutex<Glavra>>,
     out: ws::Sender,
     userid: Option<i32>,
-    roomid: i32
+    roomid: Option<i32>
 }
 
 impl Glavra {
@@ -173,7 +173,7 @@ impl Glavra {
                 glavra: arc.clone(),
                 out: out,
                 userid: None,
-                roomid: 0  // dummy value, will be replaced
+                roomid: None
             }
         }).unwrap();
     }
@@ -195,70 +195,72 @@ impl ws::Handler for Server {
 
         if let Some((_, room)) = url.query_pairs()
                 .find(|&(ref k, _)| k == "room") {
-            match room.parse() {
-                Ok(parsed_room) => self.roomid = parsed_room,
+            let room = match room.parse() {
+                Ok(parsed_room) => parsed_room,
                 Err(_) => {
                     self.error_close(ErrCode::InvalidRoomId);
                     return Ok(());
                 }
+            };
+            self.roomid = Some(room);
+
+            let lock = self.glavra.lock().unwrap();
+
+            let room_query = lock.conn.query("
+                    SELECT name, description
+                    FROM rooms
+                    WHERE id = $1", &[&room])
+                .unwrap();
+            if room_query.is_empty() {
+                self.error_close(ErrCode::RoomNotExist);
+                return Ok(());
             }
-        } else {
-            self.error_close(ErrCode::NoRoomId);
+
+            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                .insert("type", "roominfo")
+                .insert("name", room_query.get(0).get::<usize, String>(0))
+                .insert("desc", room_query.get(0).get::<usize, String>(1))
+                .unwrap()).unwrap()));
+
+            for row in lock.conn.query("
+                    SELECT * FROM (
+                      SELECT id, userid, replyid, text, tstamp
+                      FROM messages
+                      WHERE roomid = $1
+                      ORDER BY id DESC
+                      LIMIT 100
+                    ) AS _
+                    ORDER BY id ASC", &[&room]).unwrap().iter() {
+                let message = Message {
+                    id: row.get(0),
+                    roomid: room,
+                    userid: row.get(1),
+                    replyid: row.get(2),
+                    text: row.get(3),
+                    timestamp: row.get(4)
+                };
+                try!(self.out.send(self.message_json(&message, false, &lock)));
+                for row in lock.conn.query("SELECT id, userid, votetype, tstamp
+                        FROM votes WHERE messageid = $1", &[&message.id]).unwrap()
+                        .iter() {
+                    let vote = Vote {
+                        id: row.get(0),
+                        messageid: message.id,
+                        userid: row.get(1),
+                        votetype: int_to_votetype(row.get(2)).unwrap(),
+                        timestamp: row.get(3)
+                    };
+                    try!(self.out.send(self.vote_json(&vote, false)));
+                }
+            }
+
+            // this is bad and I know it
+            self.out.timeout(0, UPDATE).unwrap();
+
             return Ok(());
         };
 
-        let lock = self.glavra.lock().unwrap();
-
-        let room_query = lock.conn.query("
-                SELECT name, description
-                FROM rooms
-                WHERE id = $1", &[&self.roomid])
-            .unwrap();
-        if room_query.is_empty() {
-            self.error_close(ErrCode::RoomNotExist);
-            return Ok(());
-        }
-
-        try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "roominfo")
-            .insert("name", room_query.get(0).get::<usize, String>(0))
-            .insert("desc", room_query.get(0).get::<usize, String>(1))
-            .unwrap()).unwrap()));
-
-        for row in lock.conn.query("
-                SELECT * FROM (
-                  SELECT id, userid, replyid, text, tstamp
-                  FROM messages
-                  WHERE roomid = $1
-                  ORDER BY id DESC
-                  LIMIT 100
-                ) AS _
-                ORDER BY id ASC", &[&self.roomid]).unwrap().iter() {
-            let message = Message {
-                id: row.get(0),
-                roomid: self.roomid,
-                userid: row.get(1),
-                replyid: row.get(2),
-                text: row.get(3),
-                timestamp: row.get(4)
-            };
-            try!(self.out.send(self.message_json(&message, false, &lock)));
-            for row in lock.conn.query("SELECT id, userid, votetype, tstamp
-                    FROM votes WHERE messageid = $1", &[&message.id]).unwrap()
-                    .iter() {
-                let vote = Vote {
-                    id: row.get(0),
-                    messageid: message.id,
-                    userid: row.get(1),
-                    votetype: int_to_votetype(row.get(2)).unwrap(),
-                    timestamp: row.get(3)
-                };
-                try!(self.out.send(self.vote_json(&vote, false)));
-            }
-        }
-
-        // this is bad and I know it
-        self.out.timeout(0, UPDATE).unwrap();
+        // TODO lobby / etc.
 
         Ok(())
     }

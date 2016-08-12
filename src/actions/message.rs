@@ -34,11 +34,12 @@ impl Server {
         if text.is_empty() {
             self.send_error(ErrCode::EmptyMsg);
         } else {
+            let roomid = require!(self, self.roomid, ErrCode::NoRoomId);
             let userid = require!(self, self.userid.clone(), ErrCode::NeedLogin);
 
             let lock = self.glavra.lock().unwrap();
-            let (threshold, period) = self.get_privilege(self.roomid,
-                &self.userid, PrivType::SendMessage, &lock).unwrap();
+            let (threshold, period) = self.get_privilege(roomid, &self.userid,
+                PrivType::SendMessage, &lock).unwrap();
 
             if lock.conn.query("
                         SELECT COUNT(*) >= $1
@@ -47,7 +48,7 @@ impl Server {
                           AND userid = $4
                           AND tstamp BETWEEN now() - (interval '1s') * $2
                                      AND now()",
-                    &[&threshold, &period, &self.roomid, &userid])
+                    &[&threshold, &period, &roomid, &userid])
                         .unwrap().get(0).get(0) {
                 self.send_error(ErrCode::RateLimit);
                 return Ok(());
@@ -55,7 +56,7 @@ impl Server {
 
             let message = Message {
                 id: -1,
-                roomid: self.roomid,
+                roomid: roomid,
                 userid: userid,
                 replyid: get_i32(&json, "replyid"),
                 text: text,
