@@ -1,33 +1,23 @@
 SERVER SIDE
-TLS/SSL (web server, WS server, AND postgres server)
-notifications
-message filters (incl. ignored users)
+===========
+TLS/SSL (web server, WS server, and postgres server (?))
+"lobby" and ability to create new rooms
 user preferences such as datetime format (maybe handle themes better)
 sending arbitrary files
+finish implementing all permissions
+message filters (incl. ignored users)
 ability to export data
-decent search
+search
 
 CLIENT SIDE
+===========
 oneboxing (at least: images, message permalinks)
 full keyboard control
 transcript, permalinks
+make it usable on mobile
+desktop notifications (push notifications for Android Chrome?)
 
 OTHER CLIENTS
+=============
 native clients for all platforms (or at least notifs)
 CLI
-
-PERMISSIONS TO INCLUDE
-- read access
-- write access
-- move messages in
-- move messages out
-- change chatroom name/desc
-- change permissions of other users
-- the following privileges, separated by "own messages" and "others' messages":
-    - edit
-    - delete
-    - star
-    - pin
-    - upvote
-    - downvote
-- rate limits for all of these (daily, n per second, etc.)
