@@ -123,35 +123,43 @@ impl Glavra {
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (4, 1, NULL, 10, 0, '0s')
+        VALUES (4, 1, NULL, 8, 5, '5s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (5, 1, NULL, 11, 5, '5s')
+        VALUES (5, 1, NULL, 9, 0, '0s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (6, 1, NULL, 12, 0, '0s')
+        VALUES (6, 1, NULL, 10, 0, '0s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (7, 1, NULL, 13, 5, '5s')
+        VALUES (7, 1, NULL, 11, 5, '5s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (8, 1, NULL, 14, 0, '0s')
+        VALUES (8, 1, NULL, 12, 0, '0s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (9, 1, NULL, 15, 3, '1d')
+        VALUES (9, 1, NULL, 13, 5, '5s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (10, 1, NULL, 16, 0, '0s')
+        VALUES (10, 1, NULL, 14, 0, '0s')
         ON CONFLICT DO NOTHING;
 
         INSERT INTO privileges
-        VALUES (11, 1, NULL, 17, 0, '0s')
+        VALUES (11, 1, NULL, 15, 3, '1d')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (12, 1, NULL, 16, 0, '0s')
+        ON CONFLICT DO NOTHING;
+
+        INSERT INTO privileges
+        VALUES (13, 1, NULL, 17, 0, '0s')
         ON CONFLICT DO NOTHING;
         ").unwrap();
 

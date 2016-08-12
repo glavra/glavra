@@ -51,7 +51,7 @@ impl Server {
                         INNER JOIN messages m ON m.id = h.messageid
                         WHERE m.roomid = $3
                           AND m.userid = $4
-                          AND h.text != ''
+                          AND m.text != ''
                           AND h.tstamp BETWEEN now() - (interval '1s') * $2
                                        AND now()",
                     &[&threshold, &period, &self.roomid, &userid])
