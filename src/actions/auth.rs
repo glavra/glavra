@@ -27,17 +27,33 @@ macro_rules! rrequire {
 impl Server {
 
     pub fn auth(&mut self, json: Map<String, Value>) -> ws::Result<()> {
-        let (username, password, mut userid) =
-            (require!(self, get_string(&json, "username"), ErrCode::Malformed),
-             require!(self, get_string(&json, "password"), ErrCode::Malformed),
-             -1);
+        let (mut username, mut userid) = (String::new(), -1);
 
         let lock = self.glavra.lock().unwrap();
-        let auth_success = {
+        let auth_success = if let Some(token) = get_string(&json, "token") {
             let auth_query = lock.conn.query("
-                SELECT id, salt, hash
-                FROM users
-                WHERE username = $1", &[&username]).unwrap();
+                    SELECT t.userid, u.username
+                    FROM tokens t
+                    INNER JOIN users u ON u.id = t.userid
+                    WHERE token = $1", &[&token]).unwrap();
+            if auth_query.is_empty() {
+                // the token does not exist
+                false
+            } else {
+                let row = auth_query.get(0);
+                userid = row.get(0);
+                username = row.get(1);
+                true
+            }
+        } else {
+            username = require!(self, get_string(&json, "username"),
+                ErrCode::Malformed);
+            let password = require!(self, get_string(&json, "password"),
+                ErrCode::Malformed);
+            let auth_query = lock.conn.query("
+                    SELECT id, salt, hash
+                    FROM users
+                    WHERE username = $1", &[&username]).unwrap();
             if auth_query.is_empty() {
                 // the username doesn't exist
                 false
