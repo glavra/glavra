@@ -219,11 +219,13 @@ impl ws::Handler for Server {
                 let row = auth_query.get(0);
                 self.userid = Some(row.get(0));
                 username = Some(row.get::<usize, String>(1));
-                // TODO send response similar to 'auth' to let client know that
-                // they are logged in; this should all probably be consolidated
-                // into a single method actually since I have way too much code
-                // duplication here and in auth.rs and register.rs
-                // see also: the TODO below
+                // TODO this is The Wrong Way(tm) of doing things
+                // (code duplication and whatnot)
+                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                        .insert("type", "auth")
+                        .insert("success", true)
+                        .insert("username", row.get::<usize, String>(1))
+                        .unwrap()).unwrap()));
             }
         }
 
