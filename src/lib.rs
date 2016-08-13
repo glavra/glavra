@@ -22,6 +22,8 @@ use url::Url;
 
 use std::sync::{Arc, Mutex};
 
+use std::ops::Deref;
+
 mod types;
 use types::message::*;
 use types::vote::*;
@@ -200,6 +202,31 @@ impl ws::Handler for Server {
             return Ok(());
         };
 
+        let lock = self.glavra.lock().unwrap();
+
+        let mut username = None;  // TODO ugh this is really bad
+        if let Some((_, token)) = url.query_pairs()
+                .find(|&(ref k, _)| k == "token") {
+            let auth_query = lock.conn.query("
+                    SELECT t.userid, u.username
+                    FROM tokens t
+                    INNER JOIN users u ON u.id = t.userid
+                    WHERE token = $1", &[&token.deref()]).unwrap();
+            if auth_query.is_empty() {
+                // the token does not exist
+                // I guess we'll just fail silently then? (TODO)
+            } else {
+                let row = auth_query.get(0);
+                self.userid = Some(row.get(0));
+                username = Some(row.get::<usize, String>(1));
+                // TODO send response similar to 'auth' to let client know that
+                // they are logged in; this should all probably be consolidated
+                // into a single method actually since I have way too much code
+                // duplication here and in auth.rs and register.rs
+                // see also: the TODO below
+            }
+        }
+
         if let Some((_, room)) = url.query_pairs()
                 .find(|&(ref k, _)| k == "room") {
             let room = match room.parse() {
@@ -211,7 +238,11 @@ impl ws::Handler for Server {
             };
             self.roomid = Some(room);
 
-            let lock = self.glavra.lock().unwrap();
+            if let Some(username) = username {
+                // TODO AHHHHHHHHHHHHH
+                self.system_message(format!("{} has connected", username),
+                    &lock);
+            }
 
             let room_query = lock.conn.query("
                     SELECT name, description
