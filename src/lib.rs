@@ -86,7 +86,8 @@ impl Glavra {
         id          SERIAL PRIMARY KEY,
         username    TEXT NOT NULL UNIQUE,
         salt        BYTEA NOT NULL,
-        hash        BYTEA NOT NULL
+        hash        BYTEA NOT NULL,
+        theme       TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS tokens (
@@ -222,11 +223,24 @@ impl ws::Handler for Server {
                 // TODO this is The Wrong Way(tm) of doing things
                 // (code duplication and whatnot)
                 try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                        .insert("type", "auth")
-                        .insert("success", true)
-                        .insert("username", row.get::<usize, String>(1))
-                        .unwrap()).unwrap()));
+                    .insert("type", "auth")
+                    .insert("success", true)
+                    .insert("username", row.get::<usize, String>(1))
+                    .unwrap()).unwrap()));
             }
+        }
+
+        let pref_query = lock.conn.query("
+                SELECT theme
+                FROM users
+                WHERE id = $1", &[&self.userid])
+            .unwrap();
+        if !pref_query.is_empty() {
+            let prefs = pref_query.get(0);
+            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                .insert("type", "preferences")
+                .insert("theme", prefs.get::<usize, String>(0))
+                .unwrap()).unwrap()));
         }
 
         if let Some((_, room)) = url.query_pairs()

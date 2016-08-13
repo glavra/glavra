@@ -48,8 +48,9 @@ impl Server {
 
         let lock = self.glavra.lock().unwrap();
         let register_query = lock.conn.query("
-            INSERT INTO users (username, salt, hash)
-            VALUES ($1, $2, $3) RETURNING id",
+            INSERT INTO users (username, salt, hash, theme)
+            VALUES ($1, $2, $3, 'dark')
+            RETURNING id",
             &[&username, &salt_vec, &hash]);
         let success = register_query.is_ok();
         if success {
