@@ -224,6 +224,14 @@ impl Server {
 
     pub fn get_auth_token(&self, userid: i32, lock: &MutexGuard<Glavra>)
             -> String {
+        let token_query = lock.conn.query("
+                SELECT token
+                FROM tokens
+                WHERE userid = $1", &[&userid]).unwrap();
+        if !token_query.is_empty() {
+            return token_query.get(0).get(0);
+        }
+
         let mut rng = OsRng::new().unwrap();
         let token: String = rng.gen_ascii_chars().take(32).collect();
         lock.conn.execute("
