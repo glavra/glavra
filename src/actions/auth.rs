@@ -56,11 +56,13 @@ impl Server {
             }
         };
 
-        let auth_response = ObjectBuilder::new()
+        let builder = ObjectBuilder::new()
             .insert("type", "auth")
-            .insert("success", auth_success)
-            .unwrap();
-        try!(self.out.send(serde_json::to_string(&auth_response).unwrap()));
+            .insert("success", auth_success);
+        let builder = if auth_success {
+            builder.insert("token", self.get_auth_token(userid, &lock))
+        } else { builder };
+        try!(self.out.send(serde_json::to_string(&builder.unwrap()).unwrap()));
 
         if auth_success {
             self.userid = Some(userid);

@@ -10,6 +10,8 @@ extern crate serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
+extern crate rand;
+
 extern crate postgres;
 use postgres::{Connection, SslMode};
 
@@ -83,6 +85,11 @@ impl Glavra {
         username    TEXT NOT NULL UNIQUE,
         salt        BYTEA NOT NULL,
         hash        BYTEA NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS tokens (
+        userid      INT NOT NULL,
+        token       TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS votes (

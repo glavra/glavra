@@ -4,6 +4,8 @@ use serde_json;
 use serde_json::Value;
 use serde_json::builder::ObjectBuilder;
 
+use rand::{Rng, OsRng};
+
 use postgres;
 
 use time;
@@ -218,5 +220,16 @@ impl Server {
                     .insert("timestamp", row.get::<usize, Timespec>(2).sec)
                     .unwrap()).collect::<Vec<Value>>())
             .unwrap()).unwrap()
+    }
+
+    pub fn get_auth_token(&self, userid: i32, lock: &MutexGuard<Glavra>)
+            -> String {
+        let mut rng = OsRng::new().unwrap();
+        let token: String = rng.gen_ascii_chars().take(32).collect();
+        lock.conn.execute("
+                INSERT INTO tokens (userid, token)
+                VALUES ($1, $2)", &[&userid, &token])
+            .unwrap();
+        token
     }
 }

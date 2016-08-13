@@ -6,8 +6,7 @@ use serde_json;
 use serde_json::{Value, Map};
 use serde_json::builder::ObjectBuilder;
 
-extern crate rand;
-use self::rand::{Rng, OsRng};
+use rand::{Rng, OsRng};
 
 use enums::errcode::ErrCode;
 
@@ -57,10 +56,14 @@ impl Server {
             self.userid = Some(register_query.unwrap().get(0).get(0));
         }
 
-        try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+        let builder = ObjectBuilder::new()
             .insert("type", "register")
-            .insert("success", success)
-            .unwrap()).unwrap()));
+            .insert("success", success);
+        let builder = if success {
+            builder.insert("token", self.get_auth_token(self.userid.unwrap(),
+                &lock))
+        } else { builder };
+        try!(self.out.send(serde_json::to_string(&builder.unwrap()).unwrap()));
 
         if success {
             self.system_message(format!("{} has connected", username), &lock);
