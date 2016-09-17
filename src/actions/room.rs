@@ -2,7 +2,9 @@ use util::*;
 
 use ws;
 
+use serde_json;
 use serde_json::{Value, Map};
+use serde_json::builder::ObjectBuilder;
 
 use enums::errcode::ErrCode;
 
@@ -26,10 +28,12 @@ impl Server {
     pub fn room(&mut self, json: Map<String, Value>) -> ws::Result<()> {
         let name = require!(self, get_string(&json, "name"), ErrCode::Malformed);
         let desc = require!(self, get_string(&json, "desc"), ErrCode::Malformed);
+
         let lock = self.glavra.lock().unwrap();
         let id: i32 = lock.conn.query("
         INSERT INTO rooms (name, description) VALUES ($1, $2)
         RETURNING id", &[&name, &desc]).unwrap().get(0).get(0);
+
         lock.conn.execute("
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 1, 5, '5s')", &[&id]).unwrap();
@@ -69,6 +73,13 @@ impl Server {
         lock.conn.execute("
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 17, 0, '0s')", &[&id]).unwrap();
+
+        try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+            .insert("type", "room")
+            .insert("success", true)
+            .insert("id", id)
+            .unwrap()).unwrap()));
+
         Ok(())
     }
 }
