@@ -336,6 +336,7 @@ impl ws::Handler for Server {
             "delete"   => self.delete(json),
             "vote"     => self.vote(json),
             "history"  => self.history(json),
+            "room"     => self.room(json),
             _ => {
                 self.send_error(ErrCode::Malformed);
                 Ok(())
