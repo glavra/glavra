@@ -289,7 +289,22 @@ impl ws::Handler for Server {
             return Ok(());
         };
 
-        // TODO lobby / etc.
+        if url.query_pairs().any(|(ref k, _)| k == "queryrooms") {
+            for row in lock.conn.query("
+                        SELECT id, name, description
+                        FROM rooms
+                        ORDER BY id DESC", &[])
+                    .unwrap().iter() {
+                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                    .insert("type", "roomlist")
+                    .insert("id", row.get::<usize, i32>(0))
+                    .insert("name", row.get::<usize, String>(1))
+                    .insert("desc", row.get::<usize, String>(2))
+                    .unwrap()).unwrap()));
+            }
+
+            return Ok(());
+        }
 
         Ok(())
     }
