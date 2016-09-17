@@ -1,7 +1,6 @@
 SERVER SIDE
 ===========
 TLS/SSL (web server, WS server, and postgres server (?))
-ability to create new rooms
 more user preferences such as datetime format
 sending arbitrary files
 finish implementing all permissions
