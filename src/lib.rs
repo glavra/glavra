@@ -58,95 +58,104 @@ struct Server {
 
 impl Glavra {
 
-    pub fn start(address: &str) {
+    pub fn start(address: &str, reset: bool) {
         let conn = Connection::connect("postgres://glavra@localhost",
             SslMode::None).unwrap();
 
-        conn.batch_execute("
-        CREATE TABLE IF NOT EXISTS rooms (
-        id          SERIAL PRIMARY KEY,
-        name        TEXT NOT NULL,
-        description TEXT NOT NULL
-        );
+        if reset {
+            conn.batch_execute("
+            DROP TABLE IF EXISTS messages CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
+            DROP TABLE IF EXISTS tokens CASCADE;
+            DROP TABLE IF EXISTS votes CASCADE;
+            DROP TABLE IF EXISTS history CASCADE;
+            DROP TABLE IF EXISTS privileges CASCADE;
+            DROP TABLE IF EXISTS rooms CASCADE;
 
-        INSERT INTO rooms (id, name, description)
-        VALUES (1, 'Glavra', 'Glavra chatroom')
-        ON CONFLICT DO NOTHING;
+            CREATE TABLE rooms (
+            id          SERIAL PRIMARY KEY,
+            name        TEXT NOT NULL,
+            description TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS messages (
-        id          SERIAL PRIMARY KEY,
-        roomid      INT NOT NULL,
-        userid      INT NOT NULL,
-        replyid     INT,
-        text        TEXT NOT NULL,
-        tstamp      TIMESTAMP NOT NULL
-        );
+            CREATE TABLE messages (
+            id          SERIAL PRIMARY KEY,
+            roomid      INT NOT NULL,
+            userid      INT NOT NULL,
+            replyid     INT,
+            text        TEXT NOT NULL,
+            tstamp      TIMESTAMP NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS users (
-        id          SERIAL PRIMARY KEY,
-        username    TEXT NOT NULL UNIQUE,
-        salt        BYTEA NOT NULL,
-        hash        BYTEA NOT NULL,
-        theme       TEXT NOT NULL
-        );
+            CREATE TABLE users (
+            id          SERIAL PRIMARY KEY,
+            username    TEXT NOT NULL UNIQUE,
+            salt        BYTEA NOT NULL,
+            hash        BYTEA NOT NULL,
+            theme       TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS tokens (
-        userid      INT NOT NULL,
-        token       TEXT NOT NULL
-        );
+            CREATE TABLE tokens (
+            userid      INT NOT NULL,
+            token       TEXT NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS votes (
-        id          SERIAL PRIMARY KEY,
-        messageid   INT NOT NULL,
-        userid      INT NOT NULL,
-        votetype    INT NOT NULL,
-        tstamp      TIMESTAMP NOT NULL
-        );
+            CREATE TABLE votes (
+            id          SERIAL PRIMARY KEY,
+            messageid   INT NOT NULL,
+            userid      INT NOT NULL,
+            votetype    INT NOT NULL,
+            tstamp      TIMESTAMP NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS history (
-        id          SERIAL PRIMARY KEY,
-        messageid   INT NOT NULL,
-        replyid     INT,
-        text        TEXT NOT NULL,
-        tstamp      TIMESTAMP NOT NULL
-        );
+            CREATE TABLE history (
+            id          SERIAL PRIMARY KEY,
+            messageid   INT NOT NULL,
+            replyid     INT,
+            text        TEXT NOT NULL,
+            tstamp      TIMESTAMP NOT NULL
+            );
 
-        CREATE TABLE IF NOT EXISTS privileges (
-        id          SERIAL PRIMARY KEY,
-        roomid      INT NOT NULL,
-        userid      INT,
-        privtype    INT NOT NULL,
-        threshold   INT NOT NULL,
-        period      INTERVAL NOT NULL
-        );
+            CREATE TABLE privileges (
+            id          SERIAL PRIMARY KEY,
+            roomid      INT NOT NULL,
+            userid      INT,
+            privtype    INT NOT NULL,
+            threshold   INT NOT NULL,
+            period      INTERVAL NOT NULL
+            );
 
-        INSERT INTO privileges VALUES (1, 1, NULL, 1, 5, '5s')
-        ON CONFLICT DO NOTHING; -- SendMessage
-        INSERT INTO privileges VALUES (2, 1, NULL, 6, 5, '5s')
-        ON CONFLICT DO NOTHING; -- EditOwn
-        INSERT INTO privileges VALUES (3, 1, NULL, 7, 0, '0s')
-        ON CONFLICT DO NOTHING; -- EditOthers
-        INSERT INTO privileges VALUES (4, 1, NULL, 8, 5, '5s')
-        ON CONFLICT DO NOTHING; -- DeleteOwn
-        INSERT INTO privileges VALUES (5, 1, NULL, 9, 0, '0s')
-        ON CONFLICT DO NOTHING; -- DeleteOthers
-        INSERT INTO privileges VALUES (6, 1, NULL, 10, 0, '0s')
-        ON CONFLICT DO NOTHING; -- UpvoteOwn
-        INSERT INTO privileges VALUES (7, 1, NULL, 11, 5, '5s')
-        ON CONFLICT DO NOTHING; -- UpvoteOthers
-        INSERT INTO privileges VALUES (8, 1, NULL, 12, 0, '0s')
-        ON CONFLICT DO NOTHING; -- DownvoteOwn
-        INSERT INTO privileges VALUES (9, 1, NULL, 13, 5, '5s')
-        ON CONFLICT DO NOTHING; -- DownvoteOthers
-        INSERT INTO privileges VALUES (10, 1, NULL, 14, 0, '0s')
-        ON CONFLICT DO NOTHING; -- StarOwn
-        INSERT INTO privileges VALUES (11, 1, NULL, 15, 3, '1d')
-        ON CONFLICT DO NOTHING; -- StarOthers
-        INSERT INTO privileges VALUES (12, 1, NULL, 16, 0, '0s')
-        ON CONFLICT DO NOTHING; -- PinOwn
-        INSERT INTO privileges VALUES (13, 1, NULL, 17, 0, '0s')
-        ON CONFLICT DO NOTHING; -- PinOthers
-        ").unwrap();
+            INSERT INTO rooms (name, description)
+            VALUES ('Glavra', 'Glavra chatroom');
+
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 1, 5, '5s'); -- SendMessage
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 6, 5, '5s'); -- EditOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 7, 0, '0s'); -- EditOthers
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 8, 5, '5s'); -- DeleteOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 9, 0, '0s'); -- DeleteOthers
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 10, 0, '0s'); -- UpvoteOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 11, 5, '5s'); -- UpvoteOthers
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 12, 0, '0s'); -- DownvoteOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 13, 5, '5s'); -- DownvoteOthers
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 14, 0, '0s'); -- StarOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 15, 3, '1d'); -- StarOthers
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 16, 0, '0s'); -- PinOwn
+            INSERT INTO privileges (roomid, userid, privtype, threshold, period)
+            VALUES (1, NULL, 17, 0, '0s'); -- PinOthers
+            ").unwrap();
+        }
 
         let glavra = Glavra {
             conn: conn
