@@ -120,57 +120,32 @@ impl Glavra {
         period      INTERVAL NOT NULL
         );
 
-        INSERT INTO privileges
-        VALUES (1, 1, NULL, 1, 5, '5s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (2, 1, NULL, 6, 5, '5s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (3, 1, NULL, 7, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (4, 1, NULL, 8, 5, '5s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (5, 1, NULL, 9, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (6, 1, NULL, 10, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (7, 1, NULL, 11, 5, '5s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (8, 1, NULL, 12, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (9, 1, NULL, 13, 5, '5s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (10, 1, NULL, 14, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (11, 1, NULL, 15, 3, '1d')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (12, 1, NULL, 16, 0, '0s')
-        ON CONFLICT DO NOTHING;
-
-        INSERT INTO privileges
-        VALUES (13, 1, NULL, 17, 0, '0s')
-        ON CONFLICT DO NOTHING;
+        INSERT INTO privileges VALUES (1, 1, NULL, 1, 5, '5s')
+        ON CONFLICT DO NOTHING; -- SendMessage
+        INSERT INTO privileges VALUES (2, 1, NULL, 6, 5, '5s')
+        ON CONFLICT DO NOTHING; -- EditOwn
+        INSERT INTO privileges VALUES (3, 1, NULL, 7, 0, '0s')
+        ON CONFLICT DO NOTHING; -- EditOthers
+        INSERT INTO privileges VALUES (4, 1, NULL, 8, 5, '5s')
+        ON CONFLICT DO NOTHING; -- DeleteOwn
+        INSERT INTO privileges VALUES (5, 1, NULL, 9, 0, '0s')
+        ON CONFLICT DO NOTHING; -- DeleteOthers
+        INSERT INTO privileges VALUES (6, 1, NULL, 10, 0, '0s')
+        ON CONFLICT DO NOTHING; -- UpvoteOwn
+        INSERT INTO privileges VALUES (7, 1, NULL, 11, 5, '5s')
+        ON CONFLICT DO NOTHING; -- UpvoteOthers
+        INSERT INTO privileges VALUES (8, 1, NULL, 12, 0, '0s')
+        ON CONFLICT DO NOTHING; -- DownvoteOwn
+        INSERT INTO privileges VALUES (9, 1, NULL, 13, 5, '5s')
+        ON CONFLICT DO NOTHING; -- DownvoteOthers
+        INSERT INTO privileges VALUES (10, 1, NULL, 14, 0, '0s')
+        ON CONFLICT DO NOTHING; -- StarOwn
+        INSERT INTO privileges VALUES (11, 1, NULL, 15, 3, '1d')
+        ON CONFLICT DO NOTHING; -- StarOthers
+        INSERT INTO privileges VALUES (12, 1, NULL, 16, 0, '0s')
+        ON CONFLICT DO NOTHING; -- PinOwn
+        INSERT INTO privileges VALUES (13, 1, NULL, 17, 0, '0s')
+        ON CONFLICT DO NOTHING; -- PinOthers
         ").unwrap();
 
         let glavra = Glavra {
