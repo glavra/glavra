@@ -346,7 +346,7 @@ impl ws::Handler for Server {
 
     fn on_close(&mut self, _: ws::CloseCode, _: &str) {
         println!("client disconnected");
-        if self.userid.is_some() {
+        if self.userid.is_some() && self.roomid.is_some() {
             let lock = self.glavra.lock().unwrap();
             self.system_message(format!("{} has disconnected",
                 self.get_username(self.userid.clone().unwrap(), &lock)
