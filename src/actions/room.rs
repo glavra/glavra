@@ -30,11 +30,9 @@ impl Server {
         let id: i32 = lock.conn.query("
         INSERT INTO rooms (name, description) VALUES ($1, $2)
         RETURNING id", &[&name, &desc]).unwrap().get(0).get(0);
-        println!("{}", id);
         lock.conn.execute("
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 1, 5, '5s')", &[&id]).unwrap();
-        println!("after first");
         lock.conn.execute("
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 6, 5, '5s')", &[&id]).unwrap();
@@ -71,7 +69,6 @@ impl Server {
         lock.conn.execute("
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 17, 0, '0s')", &[&id]).unwrap();
-        println!("after last");
         Ok(())
     }
 }
