@@ -66,7 +66,9 @@ impl Server {
 
         if auth_success {
             self.userid = Some(userid);
-            self.system_message(format!("{} has connected", username), &lock);
+            if self.roomid.is_some() {
+                self.system_message(format!("{} has connected", username), &lock);
+            }
         }
 
         Ok(())

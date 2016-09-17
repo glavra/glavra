@@ -67,7 +67,9 @@ impl Server {
         try!(self.out.send(serde_json::to_string(&builder.unwrap()).unwrap()));
 
         if success {
-            self.system_message(format!("{} has connected", username), &lock);
+            if self.roomid.is_some() {
+                self.system_message(format!("{} has connected", username), &lock);
+            }
         }
 
         Ok(())
