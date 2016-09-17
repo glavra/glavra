@@ -354,11 +354,15 @@ impl ws::Handler for Server {
         }
     }
 
-    fn on_timeout(&mut self, _: ws::util::Token) -> ws::Result<()> {
-        let lock = self.glavra.lock().unwrap();
-        try!(self.out.send(self.starboard_json(VoteType::Star, &lock)));
-        try!(self.out.send(self.starboard_json(VoteType::Pin, &lock)));
-        self.out.timeout(60 * 1000, UPDATE)
+    fn on_timeout(&mut self, token: ws::util::Token) -> ws::Result<()> {
+        if token == UPDATE && self.roomid.is_some() {
+            let lock = self.glavra.lock().unwrap();
+            try!(self.out.send(self.starboard_json(VoteType::Star, &lock)));
+            try!(self.out.send(self.starboard_json(VoteType::Pin, &lock)));
+            try!(self.out.timeout(60 * 1000, UPDATE));
+        }
+
+        Ok(())
     }
 
 }
