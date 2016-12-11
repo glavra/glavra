@@ -315,6 +315,47 @@ impl ws::Handler for Server {
             return Ok(());
         }
 
+        if url.query_pairs().any(|(ref k, _)| k == "queryusers") {
+            for row in lock.conn.query("
+                        SELECT id, username
+                        FROM users
+                        ORDER BY id DESC", &[])
+                    .unwrap().iter() {
+                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                    .insert("type", "userlist")
+                    .insert("id", row.get::<usize, i32>(0))
+                    .insert("username", row.get::<usize, String>(1))
+                    .unwrap()).unwrap()));
+            }
+        }
+
+        if let Some((_, quser)) = url.query_pairs()
+                .find(|&(ref k, _)| k == "queryuser") {
+            let quser: i32 = match quser.parse() {
+                Ok(parsed_quser) => parsed_quser,
+                Err(_) => {
+                    self.error_close(ErrCode::InvalidUserId);
+                    return Ok(());
+                }
+            };
+
+            let quser_query = lock.conn.query("
+                    SELECT username
+                    FROM users
+                    WHERE id = $1", &[&quser]).unwrap();
+            if quser_query.is_empty() {
+                self.error_close(ErrCode::UserNotExist);
+                return Ok(());
+            }
+            let ruser = quser_query.get(0);
+
+            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
+                .insert("type", "userinfo")
+                .insert("id", quser)
+                .insert("username", ruser.get::<usize, String>(0))
+                .unwrap()).unwrap()));
+        }
+
         Ok(())
     }
 
