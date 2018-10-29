@@ -61,8 +61,11 @@ impl Server {
             "success": success
         });
         if success {
-            builder.as_object_mut().unwrap().insert("token".to_string(),
+            let mut obj = builder.as_object_mut().unwrap();
+            obj.insert("token".to_string(),
                 json!(self.get_auth_token(self.userid.unwrap(), &lock)));
+            obj.insert("userid".to_string(),
+                json!(self.userid.unwrap()));
         }
         try!(self.out.send(serde_json::to_string(&builder).unwrap()));
 
