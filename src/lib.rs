@@ -59,7 +59,7 @@ struct Server {
 impl Glavra {
 
     pub fn start(address: &str, reset: bool) {
-        let conn = Connection::connect("postgres://glavra@localhost",
+        let conn = Connection::connect("postgres://glavra:password@localhost",
             TlsMode::None).unwrap();
 
         if reset {

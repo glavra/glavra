@@ -60,7 +60,8 @@ impl Server {
             "success": auth_success
         });
         if auth_success {
-            *builder.get_mut("token").unwrap() = json!(self.get_auth_token(userid, &lock));
+            builder.as_object_mut().unwrap().insert("token".to_string(),
+                json!(self.get_auth_token(userid, &lock)));
         }
         try!(self.out.send(serde_json::to_string(&builder).unwrap()));
 
