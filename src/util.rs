@@ -14,8 +14,7 @@ pub fn get_string(json: &Map<String, Value>, key: &str) -> Option<String> {
 
 pub fn get_i32(json: &Map<String, Value>, key: &str) -> Option<i32> {
     match json.get(key) {
-        Some(&Value::I64(i)) => Some(i as i32),
-        Some(&Value::U64(i)) => Some(i as i32),
+        Some(&Value::Number(ref i)) => i.as_i64().map(|x| x as i32),
         _ => None
     }
 }

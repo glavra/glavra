@@ -17,4 +17,4 @@ features = ["ssl"]
 
 [dependencies.postgres]
 version = "*"
-features = ["time"]
+features = ["with-time"]

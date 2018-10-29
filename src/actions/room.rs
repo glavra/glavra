@@ -4,7 +4,6 @@ use ws;
 
 use serde_json;
 use serde_json::{Value, Map};
-use serde_json::builder::ObjectBuilder;
 
 use enums::errcode::ErrCode;
 
@@ -74,11 +73,11 @@ impl Server {
         INSERT INTO privileges (roomid, userid, privtype, threshold, period)
         VALUES ($1, NULL, 17, 0, '0s')", &[&id]).unwrap();
 
-        try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "room")
-            .insert("success", true)
-            .insert("id", id)
-            .unwrap()).unwrap()));
+        try!(self.out.send(serde_json::to_string(&json!({
+            "type": "room",
+            "success": true,
+            "id": id
+        })).unwrap()));
 
         Ok(())
     }

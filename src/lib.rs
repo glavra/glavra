@@ -6,14 +6,14 @@ mod server_util;
 extern crate ws;
 const UPDATE: ws::util::Token = ws::util::Token(1);
 
+#[macro_use]
 extern crate serde_json;
 use serde_json::{Value, Map};
-use serde_json::builder::ObjectBuilder;
 
 extern crate rand;
 
 extern crate postgres;
-use postgres::{Connection, SslMode};
+use postgres::{Connection, TlsMode};
 
 extern crate time;
 
@@ -60,7 +60,7 @@ impl Glavra {
 
     pub fn start(address: &str, reset: bool) {
         let conn = Connection::connect("postgres://glavra@localhost",
-            SslMode::None).unwrap();
+            TlsMode::None).unwrap();
 
         if reset {
             conn.batch_execute("
@@ -206,11 +206,11 @@ impl ws::Handler for Server {
                 username = Some(row.get::<usize, String>(1));
                 // TODO this is The Wrong Way(tm) of doing things
                 // (code duplication and whatnot)
-                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                    .insert("type", "auth")
-                    .insert("success", true)
-                    .insert("username", row.get::<usize, String>(1))
-                    .unwrap()).unwrap()));
+                try!(self.out.send(serde_json::to_string(&json!({
+                    "type": "auth",
+                    "success": true,
+                    "username": row.get::<usize, String>(1)
+                })).unwrap()));
             }
         }
 
@@ -221,10 +221,10 @@ impl ws::Handler for Server {
             .unwrap();
         if !pref_query.is_empty() {
             let prefs = pref_query.get(0);
-            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                .insert("type", "preferences")
-                .insert("theme", prefs.get::<usize, String>(0))
-                .unwrap()).unwrap()));
+            try!(self.out.send(serde_json::to_string(&json!({
+                "type": "preferences",
+                "theme": prefs.get::<usize, String>(0)
+            })).unwrap()));
         }
 
         if let Some((_, room)) = url.query_pairs()
@@ -254,11 +254,11 @@ impl ws::Handler for Server {
                 return Ok(());
             }
 
-            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                .insert("type", "roominfo")
-                .insert("name", room_query.get(0).get::<usize, String>(0))
-                .insert("desc", room_query.get(0).get::<usize, String>(1))
-                .unwrap()).unwrap()));
+            try!(self.out.send(serde_json::to_string(&json!({
+                "type": "roominfo",
+                "name": room_query.get(0).get::<usize, String>(0),
+                "desc": room_query.get(0).get::<usize, String>(1)
+            })).unwrap()));
 
             for row in lock.conn.query("
                     SELECT * FROM (
@@ -304,12 +304,12 @@ impl ws::Handler for Server {
                         FROM rooms
                         ORDER BY id DESC", &[])
                     .unwrap().iter() {
-                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                    .insert("type", "roomlist")
-                    .insert("id", row.get::<usize, i32>(0))
-                    .insert("name", row.get::<usize, String>(1))
-                    .insert("desc", row.get::<usize, String>(2))
-                    .unwrap()).unwrap()));
+                try!(self.out.send(serde_json::to_string(&json!({
+                    "type": "roomlist",
+                    "id": row.get::<usize, i32>(0),
+                    "name": row.get::<usize, String>(1),
+                    "desc": row.get::<usize, String>(2)
+                })).unwrap()));
             }
 
             return Ok(());
@@ -321,11 +321,11 @@ impl ws::Handler for Server {
                         FROM users
                         ORDER BY id DESC", &[])
                     .unwrap().iter() {
-                try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                    .insert("type", "userlist")
-                    .insert("id", row.get::<usize, i32>(0))
-                    .insert("username", row.get::<usize, String>(1))
-                    .unwrap()).unwrap()));
+                try!(self.out.send(serde_json::to_string(&json!({
+                    "type": "userlist",
+                    "id": row.get::<usize, i32>(0),
+                    "username": row.get::<usize, String>(1)
+                })).unwrap()));
             }
         }
 
@@ -349,11 +349,11 @@ impl ws::Handler for Server {
             }
             let ruser = quser_query.get(0);
 
-            try!(self.out.send(serde_json::to_string(&ObjectBuilder::new()
-                .insert("type", "userinfo")
-                .insert("id", quser)
-                .insert("username", ruser.get::<usize, String>(0))
-                .unwrap()).unwrap()));
+            try!(self.out.send(serde_json::to_string(&json!({
+                "type": "userinfo",
+                "id": quser,
+                "username": ruser.get::<usize, String>(0)
+            })).unwrap()));
         }
 
         Ok(())

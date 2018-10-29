@@ -2,9 +2,9 @@ use ws;
 
 use serde_json;
 use serde_json::Value;
-use serde_json::builder::ObjectBuilder;
 
 use rand::{Rng, OsRng};
+use rand::distributions::Alphanumeric;
 
 use postgres;
 
@@ -62,15 +62,15 @@ impl Server {
 
     pub fn message_json(&self, message: &Message, edit: bool,
             lock: &MutexGuard<Glavra>) -> String {
-        serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", if edit { "edit" } else { "message" })
-            .insert("id", message.id)
-            .insert("userid", message.userid)
-            .insert("replyid", message.replyid)
-            .insert("username", self.get_username(message.userid, lock).unwrap())
-            .insert("text", &message.text)
-            .insert("timestamp", message.timestamp.sec)
-            .unwrap()).unwrap()
+        serde_json::to_string(&json!({
+            "type": if edit { "edit" } else { "message" },
+            "id": message.id,
+            "userid": message.userid,
+            "replyid": message.replyid,
+            "username": self.get_username(message.userid, lock).unwrap(),
+            "text": &message.text,
+            "timestamp": message.timestamp.sec
+        })).unwrap()
     }
 
     pub fn system_message(&self, text: String, lock: &MutexGuard<Glavra>) {
@@ -110,19 +110,19 @@ impl Server {
     }
 
     pub fn vote_json(&self, vote: &Vote, undo: bool) -> String {
-        serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", if undo { "undovote" } else { "vote" })
-            .insert("messageid", vote.messageid)
-            .insert("userid", vote.userid)
-            .insert("votetype", votetype_to_int(&vote.votetype))
-            .unwrap()).unwrap()
+        serde_json::to_string(&json!({
+            "type": if undo { "undovote" } else { "vote" },
+            "messageid": vote.messageid,
+            "userid": vote.userid,
+            "votetype": votetype_to_int(&vote.votetype)
+        })).unwrap()
     }
 
     pub fn send_error(&self, err: ErrCode) {
-        self.out.send(serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "error")
-            .insert("code", err as i32)
-            .unwrap()).unwrap()).unwrap();
+        self.out.send(serde_json::to_string(&json!({
+            "type": "error",
+            "code": err as i32
+        })).unwrap()).unwrap();
     }
 
     pub fn error_close(&self, err: ErrCode) {
@@ -165,10 +165,10 @@ impl Server {
 
     pub fn starboard_json(&self, votetype: VoteType, lock: &MutexGuard<Glavra>)
             -> String {
-        serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "starboard")
-            .insert("votetype", votetype_to_int(&votetype))
-            .insert("messages", lock.conn.query(match votetype {
+        serde_json::to_string(&json!({
+            "type": "starboard",
+            "votetype": votetype_to_int(&votetype),
+            "messages": lock.conn.query(match votetype {
                 VoteType::Star =>
                     "SELECT m.id, m.text, m.tstamp,
                            MIN(u.id), MIN(u.username),
@@ -194,32 +194,31 @@ impl Server {
                     ORDER BY COUNT(v.userid)",
                 _ => panic!("weird votetype in starboard_json")
             }, &[&self.roomid.unwrap()]).unwrap().iter().map(|row|
-                ObjectBuilder::new()
-                    .insert("id", row.get::<usize, i32>(0))
-                    .insert("text", row.get::<usize, String>(1))
-                    .insert("timestamp", row.get::<usize, Timespec>(2).sec)
-                    .insert("userid", row.get::<usize, Option<i32>>(3).unwrap_or(-1))
-                    .insert("username", row.get::<usize, Option<String>>(4).unwrap_or_else(|| String::new()))
-                    .insert("votecount", row.get::<usize, i64>(5))
-                    .unwrap()
-                ).collect::<Vec<Value>>())
-            .unwrap()).unwrap()
+                json!({
+                    "id": row.get::<usize, i32>(0),
+                    "text": row.get::<usize, String>(1),
+                    "timestamp": row.get::<usize, Timespec>(2).sec,
+                    "userid": row.get::<usize, Option<i32>>(3).unwrap_or(-1),
+                    "username": row.get::<usize, Option<String>>(4).unwrap_or_else(|| String::new()),
+                    "votecount": row.get::<usize, i64>(5)
+                })
+            ).collect::<Vec<Value>>()
+        })).unwrap()
     }
 
     pub fn history_json(&self, id: i32, lock: &MutexGuard<Glavra>) -> String {
-        serde_json::to_string(&ObjectBuilder::new()
-            .insert("type", "history")
-            .insert("revisions", lock.conn.query("
+        serde_json::to_string(&json!({
+            "type": "history",
+            "revisions": lock.conn.query("
                 SELECT replyid, text, tstamp
                 FROM history
                 WHERE messageid = $1
-                ORDER BY id", &[&id]).unwrap().iter().map(|row|
-                ObjectBuilder::new()
-                    .insert("replyid", row.get::<usize, Option<i32>>(0))
-                    .insert("text", row.get::<usize, String>(1))
-                    .insert("timestamp", row.get::<usize, Timespec>(2).sec)
-                    .unwrap()).collect::<Vec<Value>>())
-            .unwrap()).unwrap()
+                ORDER BY id", &[&id]).unwrap().iter().map(|row| json!({
+                    "replyid": row.get::<usize, Option<i32>>(0),
+                    "text": row.get::<usize, String>(1),
+                    "timestamp": row.get::<usize, Timespec>(2).sec
+                })).collect::<Vec<Value>>()
+        })).unwrap()
     }
 
     pub fn get_auth_token(&self, userid: i32, lock: &MutexGuard<Glavra>)
@@ -233,7 +232,7 @@ impl Server {
         }
 
         let mut rng = OsRng::new().unwrap();
-        let token: String = rng.gen_ascii_chars().take(32).collect();
+        let token: String = rng.sample_iter(&Alphanumeric).take(32).collect();
         lock.conn.execute("
                 INSERT INTO tokens (userid, token)
                 VALUES ($1, $2)", &[&userid, &token])

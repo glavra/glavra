@@ -4,9 +4,8 @@ use ws;
 
 use serde_json;
 use serde_json::{Value, Map};
-use serde_json::builder::ObjectBuilder;
 
-use rand::{Rng, OsRng};
+use rand::{Rng, RngCore, OsRng};
 
 use enums::errcode::ErrCode;
 
@@ -57,14 +56,15 @@ impl Server {
             self.userid = Some(register_query.unwrap().get(0).get(0));
         }
 
-        let builder = ObjectBuilder::new()
-            .insert("type", "register")
-            .insert("success", success);
-        let builder = if success {
-            builder.insert("token", self.get_auth_token(self.userid.unwrap(),
-                &lock))
-        } else { builder };
-        try!(self.out.send(serde_json::to_string(&builder.unwrap()).unwrap()));
+        let mut builder = json!({
+            "type": "register",
+            "success": success
+        });
+        if success {
+            *builder.get_mut("token").unwrap() =
+                json!(self.get_auth_token(self.userid.unwrap(), &lock));
+        }
+        try!(self.out.send(serde_json::to_string(&builder).unwrap()));
 
         if success {
             if self.roomid.is_some() {

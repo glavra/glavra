@@ -4,7 +4,6 @@ use ws;
 
 use serde_json;
 use serde_json::{Value, Map};
-use serde_json::builder::ObjectBuilder;
 
 use enums::errcode::ErrCode;
 
@@ -56,13 +55,14 @@ impl Server {
             }
         };
 
-        let builder = ObjectBuilder::new()
-            .insert("type", "auth")
-            .insert("success", auth_success);
-        let builder = if auth_success {
-            builder.insert("token", self.get_auth_token(userid, &lock))
-        } else { builder };
-        try!(self.out.send(serde_json::to_string(&builder.unwrap()).unwrap()));
+        let mut builder = json!({
+            "type": "auth",
+            "success": auth_success
+        });
+        if auth_success {
+            *builder.get_mut("token").unwrap() = json!(self.get_auth_token(userid, &lock));
+        }
+        try!(self.out.send(serde_json::to_string(&builder).unwrap()));
 
         if auth_success {
             self.userid = Some(userid);
